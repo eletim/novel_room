@@ -1,2 +1,13 @@
+# Local novel manuscripts are private by default.
 works/*
 !works/.gitkeep
+
+# Editorial outputs may contain spoilers or summaries of private manuscripts.
+reviews/*
+!reviews/.gitkeep
+proposals/*
+!proposals/.gitkeep
+
+# Python local artifacts.
+__pycache__/
+*.py[cod]
