@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+	<meta charset="UTF-8">
+	<title>Error {{ code }}</title>
+	<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+	<div class="main-content">
+		<section class="panel">
+			<h1>Error {{ code }}</h1>
+			<p>{{ message }}</p>
+			<p><a class="nav-link" href="{{ url_for('index') }}">Root に戻る</a></p>
+		</section>
+	</div>
+</body>
+</html>

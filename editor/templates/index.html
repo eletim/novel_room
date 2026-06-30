@@ -2,64 +2,104 @@
 <html lang="ja">
 <head>
 	<meta charset="UTF-8">
-	<title>File Selector</title>
+	<title>Novel Room</title>
 	<link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 	<div class="main-content">
-		<h1>Welcome, {{ username }}!</h1>
-		<h2>{{ current_folder.name if current_folder else "Root" }}</h2>
-		<ul> {% if current_folder and current_folder.parent_id %} <li><a
-					href="{{ url_for('view_folder', folder_id=current_folder.parent_id) }}">..</a></li> {% endif %} {%
-			for folder in folders %} <li>
-				<a href="{{ url_for('view_folder', folder_id=folder.id) }}">{{ folder.name }}/</a>
-				<form action="/delete_folder/{{ folder.id }}" method="post" style="display:inline;"
-					onsubmit="confirmDeleteFolder(event, {{ folder.id }});">
-					<button type="submit">Delete</button>
+		<header class="page-header">
+			<div>
+				<h1>Novel Room</h1>
+				<p class="path-label">現在地: works{% if current_path %}/{{ current_path }}{% endif %}</p>
+			</div>
+			<div class="header-actions">
+				<a class="nav-link" href="{{ url_for('index') }}">Root</a>
+				{% if parent_path is not none %}
+				<a class="nav-link" href="{{ url_for('index') if parent_path == '' else url_for('view_folder', path=parent_path) }}">..</a>
+				{% endif %}
+			</div>
+		</header>
+
+		{% if notice %}
+		<p class="message success">{{ notice }}</p>
+		{% endif %}
+		{% if error %}
+		<p class="message error">{{ error }}</p>
+		{% endif %}
+
+		<section class="panel">
+			<h2>{{ current_name }}</h2>
+			<ul class="entry-list">
+				{% for folder in folders %}
+				<li class="entry-row">
+					<div class="entry-main">
+						<a class="entry-link" href="{{ url_for('view_folder', path=folder.path) }}">{{ folder.name }}/</a>
+						<span class="meta">更新: {{ folder.last_modified.strftime('%Y-%m-%d %H:%M') }}</span>
+					</div>
+					<div class="entry-actions">
+						<form action="{{ url_for('rename_entry') }}" method="post" class="inline-form">
+							<input type="hidden" name="current_path" value="{{ current_path }}">
+							<input type="hidden" name="path" value="{{ folder.path }}">
+							<input type="text" name="new_name" value="{{ folder.name }}" required>
+							<button type="submit">Rename</button>
+						</form>
+						<form action="{{ url_for('delete_entry') }}" method="post" class="inline-form delete-form">
+							<input type="hidden" name="current_path" value="{{ current_path }}">
+							<input type="hidden" name="path" value="{{ folder.path }}">
+							<button type="submit">Delete</button>
+						</form>
+					</div>
+				</li>
+				{% endfor %}
+
+				{% for file in files %}
+				<li class="entry-row">
+					<div class="entry-main">
+						<a class="entry-link" href="{{ url_for('edit_file', path=file.path) }}">{{ file.name }}</a>
+						<span class="meta">更新: {{ file.last_modified.strftime('%Y-%m-%d %H:%M') }} / 文字数: {{ file.length }}</span>
+					</div>
+					<div class="entry-actions">
+						<form action="{{ url_for('rename_entry') }}" method="post" class="inline-form">
+							<input type="hidden" name="current_path" value="{{ current_path }}">
+							<input type="hidden" name="path" value="{{ file.path }}">
+							<input type="text" name="new_name" value="{{ file.name }}" required>
+							<button type="submit">Rename</button>
+						</form>
+						<form action="{{ url_for('delete_entry') }}" method="post" class="inline-form delete-form">
+							<input type="hidden" name="current_path" value="{{ current_path }}">
+							<input type="hidden" name="path" value="{{ file.path }}">
+							<button type="submit">Delete</button>
+						</form>
+					</div>
+				</li>
+				{% endfor %}
+
+				{% if not folders and not files %}
+				<li class="empty-state">このフォルダにはまだファイルもフォルダもありません。</li>
+				{% endif %}
+			</ul>
+		</section>
+
+		<section class="panel form-panel">
+			<div class="form-block">
+				<h2>新しいフォルダ</h2>
+				<form action="{{ url_for('create_folder') }}" method="post" class="stack-form">
+					<input type="hidden" name="current_path" value="{{ current_path }}">
+					<input type="text" name="name" placeholder="folder-name" required>
+					<button type="submit">Create Folder</button>
 				</form>
-			</li> {% endfor %} {% for doc in documents %} <li>
-				<form action="/editor" method="post" style="display:inline;">
-					<input type="hidden" name="doc_id" value="{{ doc.id }}">
-					<button type="submit">{{ doc.title }}</button>
-				</form> - 最終更新日時: {{ doc.last_modified.strftime('%Y-%m-%d %H:%M') }} - 文字数: {{ doc.length }}
-				<!-- Plus button to toggle options -->
-				<button class="toggle-options" onclick="toggleOptions({{ doc.id }})">+</button>
-				<!-- Options (hidden by default) -->
-				<div id="options-{{ doc.id }}" class="options" style="display:none;">
-					<!-- Rename document form -->
-					<form action="/rename_document" method="post" style="display:inline;">
-						<input type="hidden" name="doc_id" value="{{ doc.id }}">
-						<input type="text" name="new_title" placeholder="New title" required>
-						<button type="submit">Rename</button>
-					</form>
-					<!-- Move document form -->
-					<form action="/move_document" method="post" style="display:inline;">
-						<input type="hidden" name="doc_id" value="{{ doc.id }}">
-						<select name="new_folder_id">
-							<option value="">Root</option> {% for folder in folders %} <option value="{{ folder.id }}">
-								{{ folder.name }}</option> {% endfor %}
-						</select>
-						<button type="submit">Move</button>
-					</form>
-					<!-- Delete document form -->
-					<form action="/delete_document/{{ doc.id }}" method="post" style="display:inline;"
-						onsubmit="confirmDelete(event);">
-						<button type="submit">Delete</button>
-					</form>
-				</div>
-			</li> {% endfor %} </ul>
-		<h2>Create New Folder</h2>
-		<form action="/create_folder" method="post">
-			<input type="hidden" name="parent_id" value="{{ current_folder.id if current_folder else '' }}">
-			<input type="text" name="name" placeholder="Enter new folder name" required>
-			<button type="submit">Create</button>
-		</form>
-		<h2>Create New Document</h2>
-		<form action="/create" method="post">
-			<input type="hidden" name="folder_id" value="{{ current_folder.id if current_folder else '' }}">
-			<input type="text" name="title" placeholder="Enter new document title" required>
-			<button type="submit">Create</button>
-		</form>
+			</div>
+
+			<div class="form-block">
+				<h2>新しいテキスト</h2>
+				<form action="{{ url_for('create_file') }}" method="post" class="stack-form">
+					<input type="hidden" name="current_path" value="{{ current_path }}">
+					<input type="text" name="name" placeholder="chapter01.md" required>
+					<button type="submit">Create File</button>
+				</form>
+				<p class="hint">`.txt` と `.md` のみ作成できます。</p>
+			</div>
+		</section>
 	</div>
 	<script src="/static/js/index.js"></script>
 </body>

@@ -1,49 +1,65 @@
-document.addEventListener('DOMContentLoaded', (event) => {
+document.addEventListener('DOMContentLoaded', () => {
 	const novelText = document.getElementById('novel-text');
+	const saveStatus = document.getElementById('save-status');
+	const charCount = document.getElementById('char-count');
+	const lastModified = document.getElementById('last-modified');
 
-	if (!novelText) {
-		console.error('novel-text element not found');
+	if (!novelText || !saveStatus || !charCount || !lastModified) {
 		return;
 	}
 
-	// 初期コンテンツを設定
+	let saveTimer = null;
+
 	novelText.innerText = initialContent;
+	updateCharCount();
 
-	console.log('docId:', docId);
-	console.log('Initial content:', novelText.innerText);
+	function updateCharCount() {
+		charCount.innerText = `文字数: ${novelText.innerText.length}`;
+	}
 
-	// テキストを保存する関数
 	function saveText(showDialog = false) {
-		const content = novelText.innerText; // `innerText`に変更
-		const length = content.length;
-		console.log('Saving content:', content);
+		const content = novelText.innerText;
+		saveStatus.innerText = '保存中...';
 
 		fetch('/save', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
 			},
-			body: JSON.stringify({ content, length, doc_id: docId })
-		}).then(response => response.json())
-			.then(data => {
-				console.log('Save response:', data);
+			body: JSON.stringify({ path: filePath, content })
+		})
+			.then((response) => {
+				if (!response.ok) {
+					throw new Error('save failed');
+				}
+				return response.json();
+			})
+			.then((data) => {
+				saveStatus.innerText = '自動保存済み';
+				charCount.innerText = `文字数: ${data.length}`;
+				lastModified.innerText = `最終保存: ${data.last_modified}`;
 				if (showDialog) {
 					alert(data.message);
 				}
-			}).catch(error => {
-				console.error('Error saving content:', error);
+			})
+			.catch(() => {
+				saveStatus.innerText = '保存失敗';
 			});
 	}
 
-	// テキストエリアの内容が変更されたときに自動保存
-	novelText.addEventListener('input', () => {
-		saveText();
-	});
+	function queueSave() {
+		updateCharCount();
+		saveStatus.innerText = '変更あり';
+		window.clearTimeout(saveTimer);
+		saveTimer = window.setTimeout(() => saveText(false), 400);
+	}
 
-	// Ctrl + S キーが押されたときにテキストを保存
+	novelText.addEventListener('input', queueSave);
+
 	document.addEventListener('keydown', (event) => {
-		if (event.ctrlKey && event.key === 's') {
-			event.preventDefault(); // ブラウザのデフォルトの保存ダイアログを防ぐ
+		if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+			event.preventDefault();
+			window.clearTimeout(saveTimer);
 			saveText(true);
 		}
 	});

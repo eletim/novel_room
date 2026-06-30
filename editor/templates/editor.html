@@ -2,18 +2,34 @@
 <html lang="ja">
 <head>
 	<meta charset="UTF-8">
-	<title>simple_editor</title>
+	<title>{{ file_name }}</title>
 	<link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 	<div class="main-content">
+		<header class="page-header">
+			<div>
+				<h1>{{ file_name }}</h1>
+				<p class="path-label">works/{{ file_path }}</p>
+			</div>
+			<div class="header-actions">
+				<a class="nav-link" href="{{ url_for('index') if folder_path == '' else url_for('view_folder', path=folder_path) }}">Back</a>
+			</div>
+		</header>
+
+		<section class="editor-meta">
+			<span id="save-status">自動保存待機中</span>
+			<span id="char-count">文字数: {{ length }}</span>
+			<span id="last-modified">最終保存: {{ last_modified.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+		</section>
+
 		<div class="editor-container">
-			<div id="novel-text" class="novel-content" contenteditable="true">{{ document.content }}</div>
+			<div id="novel-text" class="novel-content" contenteditable="true"></div>
 		</div>
 	</div>
 	<script>
-		const docId = {{ document.id }};
-		const initialContent = {{ document.content | tojson | safe }};
+		const filePath = {{ file_path | tojson | safe }};
+		const initialContent = {{ content | tojson | safe }};
 	</script>
 	<script src="/static/js/editor.js"></script>
 </body>
