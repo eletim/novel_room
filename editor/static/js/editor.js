@@ -3,6 +3,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	const saveStatus = document.getElementById('save-status');
 	const charCount = document.getElementById('char-count');
 	const lastModified = document.getElementById('last-modified');
+	const saveButton = document.getElementById('save-button');
+	const fullscreenButton = document.getElementById('fullscreen-button');
 
 	if (!novelText || !saveStatus || !charCount || !lastModified) {
 		return;
@@ -12,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	novelText.innerText = initialContent;
 	updateCharCount();
+	novelText.focus();
 
 	function updateCharCount() {
 		charCount.innerText = `文字数: ${novelText.innerText.length}`;
@@ -55,6 +58,17 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	novelText.addEventListener('input', queueSave);
+	saveButton?.addEventListener('click', () => {
+		window.clearTimeout(saveTimer);
+		saveText(true);
+	});
+	fullscreenButton?.addEventListener('click', () => {
+		if (!document.fullscreenElement) {
+			document.documentElement.requestFullscreen?.();
+			return;
+		}
+		document.exitFullscreen?.();
+	});
 
 	document.addEventListener('keydown', (event) => {
 		if ((event.ctrlKey || event.metaKey) && event.key === 's') {

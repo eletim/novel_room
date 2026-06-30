@@ -1,32 +1,32 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" class="editor-html">
 <head>
 	<meta charset="UTF-8">
 	<title>{{ file_name }}</title>
 	<link rel="stylesheet" href="/static/css/style.css">
 </head>
-<body>
-	<div class="main-content">
-		<header class="page-header">
-			<div>
-				<h1>{{ file_name }}</h1>
-				<p class="path-label">works/{{ file_path }}</p>
-			</div>
-			<div class="header-actions">
-				<a class="nav-link" href="{{ url_for('index') if folder_path == '' else url_for('view_folder', path=folder_path) }}">Back</a>
-			</div>
-		</header>
+<body class="editor-page">
+	<header class="editor-bar">
+		<a class="editor-back" href="{{ url_for('index') if folder_path == '' else url_for('view_folder', path=folder_path) }}">Back</a>
+		<span class="editor-file-name">{{ file_name }}</span>
+		<span id="save-status">自動保存待機中</span>
+		<span id="char-count">文字数: {{ length }}</span>
+		<span id="last-modified">最終保存: {{ last_modified.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+		<button id="save-button" type="button">Save</button>
+		<button id="fullscreen-button" type="button">Fullscreen</button>
+	</header>
 
-		<section class="editor-meta">
-			<span id="save-status">自動保存待機中</span>
-			<span id="char-count">文字数: {{ length }}</span>
-			<span id="last-modified">最終保存: {{ last_modified.strftime('%Y-%m-%d %H:%M:%S') }}</span>
-		</section>
-
-		<div class="editor-container">
-			<div id="novel-text" class="novel-content" contenteditable="true"></div>
-		</div>
-	</div>
+	<main class="immersive-editor">
+		<div
+			id="novel-text"
+			class="novel-content"
+			contenteditable="true"
+			role="textbox"
+			aria-multiline="true"
+			tabindex="0"
+			spellcheck="false"
+		></div>
+	</main>
 	<script>
 		const filePath = {{ file_path | tojson | safe }};
 		const initialContent = {{ content | tojson | safe }};

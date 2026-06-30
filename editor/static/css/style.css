@@ -1,3 +1,7 @@
+html {
+	height: 100%;
+}
+
 body {
 	color: rgb(170, 195, 225);
 	background-color: rgb(30, 30, 30);
@@ -158,23 +162,94 @@ input {
 	padding: 18px 0;
 }
 
-.editor-container {
-	width: 100%;
-	margin-top: 20px;
+.editor-html,
+.editor-page {
+	height: 100%;
+	margin: 0;
+	overflow: hidden;
+}
+
+.editor-page {
+	--editor-bar-height: 34px;
+	color: rgb(170, 195, 225);
+	background-color: rgb(30, 30, 30);
+}
+
+.editor-bar {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	z-index: 10;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	height: var(--editor-bar-height);
+	padding: 0 8px;
+	box-sizing: border-box;
+	font-size: 12px;
+	line-height: 1;
+	background-color: rgba(22, 22, 22, 0.96);
+	border-bottom: 1px solid rgb(45, 45, 45);
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.editor-bar button,
+.editor-back {
+	color: rgb(170, 195, 225);
+	background-color: transparent;
+	border: 1px solid rgb(70, 70, 70);
+	padding: 3px 8px;
+	font-size: 12px;
+	line-height: 1.2;
+	text-decoration: none;
+}
+
+.editor-bar button:hover,
+.editor-back:hover {
+	background-color: rgb(50, 50, 50);
+}
+
+.editor-file-name {
+	max-width: 22vw;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: rgb(220, 230, 245);
+}
+
+.editor-bar #save-status,
+.editor-bar #char-count,
+.editor-bar #last-modified {
+	color: rgb(130, 150, 175);
+}
+
+.editor-bar #last-modified {
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.immersive-editor {
+	width: 100vw;
+	height: 100vh;
+	padding-top: var(--editor-bar-height);
+	box-sizing: border-box;
 }
 
 .novel-content {
 	color: rgb(220, 230, 245);
 	background-color: rgb(30, 30, 30);
-	font-size: 30px;
+	font-size: 36px;
 	font-family: "Meiryo", sans-serif;
-	width: 100%;
-	min-height: 76vh;
+	width: 100vw;
+	height: calc(100vh - var(--editor-bar-height));
 	outline: none;
-	border: 1px solid rgb(55, 55, 55);
-	padding: 18px;
-	line-height: 1.9;
+	border: 0;
+	padding: 18px 10vw 40px;
+	line-height: 2;
 	white-space: pre-wrap;
+	overflow-y: auto;
 	box-sizing: border-box;
 }
 
@@ -200,6 +275,22 @@ input {
 
 	.novel-content {
 		font-size: 24px;
-		min-height: 68vh;
+		padding: 14px 5vw 32px;
+	}
+}
+
+@media (max-width: 700px) {
+	.editor-page {
+		--editor-bar-height: 38px;
+	}
+
+	.editor-bar {
+		gap: 6px;
+		font-size: 11px;
+	}
+
+	.editor-file-name,
+	.editor-bar #last-modified {
+		display: none;
 	}
 }
