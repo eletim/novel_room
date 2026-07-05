@@ -17,7 +17,8 @@ a {
 }
 
 button,
-input {
+input,
+textarea {
 	font: inherit;
 }
 
@@ -233,19 +234,20 @@ input {
 }
 
 .novel-content {
+	display: block;
 	color: rgb(220, 230, 245);
 	background-color: rgb(30, 30, 30);
 	font-size: 36px;
 	font-family: "Meiryo", sans-serif;
 	width: 100%;
 	min-height: calc(100vh - var(--editor-bar-height));
-	height: auto;
+	height: calc(100vh - var(--editor-bar-height));
 	outline: none;
 	border: 0;
 	padding: 18px 10vw 40px;
 	line-height: 2;
-	white-space: pre-wrap;
-	overflow-y: visible;
+	resize: none;
+	overflow-y: auto;
 	box-sizing: border-box;
 }
 

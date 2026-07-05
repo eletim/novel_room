@@ -12,16 +12,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	let saveTimer = null;
 
-	novelText.innerText = initialContent;
+	novelText.value = initialContent;
 	updateCharCount();
 	novelText.focus();
 
 	function updateCharCount() {
-		charCount.innerText = `文字数: ${novelText.innerText.length}`;
+		charCount.innerText = `文字数: ${novelText.value.length}`;
 	}
 
 	function saveText(showDialog = false) {
-		const content = novelText.innerText;
+		const content = novelText.value;
 		saveStatus.innerText = '保存中...';
 
 		fetch('/save', {

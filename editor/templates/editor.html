@@ -17,15 +17,11 @@
 	</header>
 
 	<main class="immersive-editor">
-		<div
+		<textarea
 			id="novel-text"
 			class="novel-content"
-			contenteditable="true"
-			role="textbox"
-			aria-multiline="true"
-			tabindex="0"
 			spellcheck="false"
-		></div>
+		></textarea>
 	</main>
 	<script>
 		const filePath = {{ file_path | tojson | safe }};
