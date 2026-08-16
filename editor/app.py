@@ -117,6 +117,7 @@ def safe_directory_entries(directory: Path) -> tuple[list[dict], list[dict]]:
                     "last_modified": datetime.fromtimestamp(entry.stat().st_mtime),
                     "node": {
                         "is_node": node_inspection.is_node,
+                        "is_candidate": node_inspection.is_candidate,
                         "title": node_inspection.manifest.title if node_inspection.manifest else "",
                         "status": node_inspection.manifest.status if node_inspection.manifest else "",
                         "missing_required": node_inspection.missing_required,

@@ -36,7 +36,7 @@
 						<a class="entry-link" href="{{ url_for('view_folder', path=folder.path) }}">{{ folder.name }}/</a>
 						{% if folder.node.is_node %}
 						<span class="node-badge">話ノード{% if folder.node.title %}: {{ folder.node.title }}{% endif %} / {{ folder.node.status }}</span>
-						{% elif folder.node.missing_required or folder.node.errors %}
+						{% elif folder.node.is_candidate and (folder.node.missing_required or folder.node.errors) %}
 						<span class="node-badge node-badge-warning">
 							{% if folder.node.missing_required %}必須不足: {{ folder.node.missing_required | join(', ') }}{% endif %}
 							{% if folder.node.errors %} manifest不正{% endif %}

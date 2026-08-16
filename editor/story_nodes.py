@@ -36,6 +36,7 @@ class StoryNode:
 class NodeInspection:
     folder_name: str
     path: str
+    is_candidate: bool
     is_node: bool
     manifest: NodeManifest | None
     missing_required: tuple[str, ...]
@@ -81,24 +82,28 @@ def read_manifest(node_dir: Path) -> NodeManifest:
 
 
 def inspect_node_folder(root: Path, folder: Path) -> NodeInspection:
+    is_candidate = any((folder / name).exists() for name in REQUIRED_NODE_FILES)
     missing_required = tuple(name for name in REQUIRED_NODE_FILES if not (folder / name).is_file())
     errors: list[str] = []
     manifest = None
 
-    if (folder / "manifest.json").is_file():
+    if is_candidate and (folder / "manifest.json").is_file():
         try:
             manifest = read_manifest(folder)
         except StoryNodeError as exc:
             errors.append(str(exc))
+    elif is_candidate and not (folder / "manifest.json").exists():
+        errors.append("manifest.json is missing.")
 
     optional_files = tuple(name for name in OPTIONAL_NODE_FILES if (folder / name).exists())
 
     return NodeInspection(
         folder_name=folder.name,
         path=relative_path_for(root, folder),
-        is_node=not missing_required and manifest is not None and not errors,
+        is_candidate=is_candidate,
+        is_node=is_candidate and not missing_required and manifest is not None and not errors,
         manifest=manifest,
-        missing_required=missing_required,
+        missing_required=missing_required if is_candidate else (),
         errors=tuple(errors),
         optional_files=optional_files,
     )

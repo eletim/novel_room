@@ -73,6 +73,19 @@ class StoryNodeTests(unittest.TestCase):
             self.assertFalse(inspection.is_node)
             self.assertEqual(inspection.missing_required, ("main.md",))
 
+    def test_plain_folder_is_not_a_broken_node_candidate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plain_dir = root / "plain"
+            plain_dir.mkdir()
+
+            inspection = inspect_node_folder(root, plain_dir)
+
+            self.assertFalse(inspection.is_candidate)
+            self.assertFalse(inspection.is_node)
+            self.assertEqual(inspection.missing_required, ())
+            self.assertEqual(inspection.errors, ())
+
     def test_list_nodes_ignores_plain_folders(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
