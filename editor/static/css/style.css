@@ -18,6 +18,7 @@ a {
 
 button,
 input,
+select,
 textarea {
 	font: inherit;
 }
@@ -35,7 +36,8 @@ button:hover,
 	background-color: rgb(70, 70, 70);
 }
 
-input {
+input,
+select {
 	color: rgb(220, 230, 245);
 	background-color: rgb(40, 40, 40);
 	border: 1px solid rgb(95, 95, 95);
@@ -131,6 +133,243 @@ input {
 .entry-link {
 	text-decoration: none;
 	font-size: 24px;
+}
+
+.node-badge {
+	display: inline-block;
+	width: fit-content;
+	color: rgb(210, 225, 245);
+	background-color: rgb(45, 65, 50);
+	border: 1px solid rgb(80, 115, 85);
+	padding: 4px 8px;
+	font-size: 14px;
+}
+
+.node-badge-warning {
+	color: rgb(245, 215, 160);
+	background-color: rgb(70, 52, 35);
+	border-color: rgb(125, 88, 55);
+}
+
+.raw-folder-link {
+	color: rgb(150, 170, 195);
+	font-size: 14px;
+}
+
+.primary-link {
+	margin-top: 10px;
+}
+
+.overview-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	gap: 24px;
+}
+
+.definition-list {
+	display: grid;
+	gap: 10px;
+	margin: 0;
+}
+
+.definition-list div {
+	display: grid;
+	grid-template-columns: 120px minmax(0, 1fr);
+	gap: 12px;
+}
+
+.definition-list dt {
+	color: rgb(130, 150, 175);
+}
+
+.definition-list dd {
+	margin: 0;
+	word-break: break-word;
+}
+
+.node-illustration {
+	margin-top: 18px;
+}
+
+.node-illustration img {
+	display: block;
+	max-width: min(100%, 720px);
+	max-height: 70vh;
+	object-fit: contain;
+	border: 1px solid rgb(55, 55, 55);
+}
+
+.illustration-upload {
+	display: grid;
+	gap: 12px;
+	margin-top: 18px;
+}
+
+.paste-target {
+	display: grid;
+	place-items: center;
+	min-height: 130px;
+	border: 1px dashed rgb(95, 95, 95);
+	background-color: rgb(30, 30, 30);
+	color: rgb(150, 170, 195);
+	outline: none;
+}
+
+.paste-target:focus {
+	border-color: rgb(120, 150, 190);
+	color: rgb(220, 230, 245);
+}
+
+.illustration-preview img {
+	display: block;
+	max-width: min(100%, 720px);
+	max-height: 70vh;
+	object-fit: contain;
+	border: 1px solid rgb(80, 115, 85);
+}
+
+.illustration-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.illustration-actions button:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+
+.graph-content {
+	width: min(1280px, 94%);
+}
+
+.graph-board {
+	overflow-x: auto;
+}
+
+.graph-route {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-bottom: 18px;
+}
+
+.graph-route a {
+	text-decoration: none;
+	border: 1px solid rgb(80, 115, 85);
+	background-color: rgb(45, 65, 50);
+	padding: 5px 9px;
+}
+
+.route-arrow {
+	color: rgb(130, 150, 175);
+}
+
+.graph-visual-scroll {
+	overflow-x: auto;
+	padding-bottom: 6px;
+}
+
+.graph-visual {
+	position: relative;
+	min-width: 100%;
+	background-color: rgb(28, 30, 34);
+	border: 1px solid rgb(48, 55, 62);
+}
+
+.graph-node-card {
+	border: 1px solid rgb(55, 55, 55);
+	background-color: rgb(30, 30, 30);
+	padding: 14px;
+}
+
+.graph-node-box {
+	position: absolute;
+	z-index: 2;
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+	box-sizing: border-box;
+	text-decoration: none;
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+
+.graph-node-card.is-main-route {
+	border-color: rgb(125, 170, 105);
+	background-color: rgb(34, 48, 37);
+}
+
+.graph-node-box:hover {
+	border-color: rgb(145, 170, 205);
+	background-color: rgb(38, 43, 50);
+}
+
+.graph-node-title {
+	color: rgb(220, 230, 245);
+	font-size: 20px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.graph-node-id {
+	color: rgb(130, 150, 175);
+	font-size: 14px;
+}
+
+.graph-node-badges,
+.graph-outgoing {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 10px;
+}
+
+.graph-outgoing span {
+	color: rgb(150, 170, 195);
+	border: 1px solid rgb(55, 55, 55);
+	padding: 3px 6px;
+	font-size: 14px;
+}
+
+.graph-edge-layer {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	pointer-events: none;
+	overflow: visible;
+}
+
+.graph-edge {
+	fill: none;
+	stroke: rgb(90, 110, 138);
+	stroke-width: 2.5;
+	marker-end: url("#graph-arrow");
+}
+
+.graph-edge.is-main-route {
+	stroke: rgb(145, 190, 105);
+	stroke-width: 4;
+	marker-end: url("#graph-arrow-main");
+}
+
+#graph-arrow path {
+	fill: rgb(90, 110, 138);
+}
+
+#graph-arrow-main path {
+	fill: rgb(145, 190, 105);
+}
+
+.branch-badge {
+	background-color: rgb(45, 52, 78);
+	border-color: rgb(80, 90, 130);
+}
+
+.merge-badge {
+	background-color: rgb(65, 48, 45);
+	border-color: rgb(120, 82, 75);
 }
 
 .entry-actions {
@@ -274,6 +513,15 @@ input {
 	.novel-content {
 		font-size: 24px;
 		padding: 14px 5vw 32px;
+	}
+
+	.overview-grid,
+	.definition-list div {
+		grid-template-columns: 1fr;
+	}
+
+	.graph-visual {
+		min-width: 720px;
 	}
 }
 

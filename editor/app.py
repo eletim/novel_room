@@ -1,12 +1,53 @@
+import struct
+import zlib
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
+
+try:
+    from .story_graph import (
+        StoryGraphError,
+        add_edge,
+        graph_layout,
+        graph_path,
+        load_graph,
+        load_valid_graph,
+        main_route,
+        ordered_nodes,
+        remove_edge,
+        safe_load_graph,
+        save_graph,
+        set_main_next,
+        set_start,
+        successors,
+    )
+    from .story_nodes import StoryNodeError, create_node, inspect_node_folder, list_nodes, load_node
+except ImportError:
+    from story_graph import (
+        StoryGraphError,
+        add_edge,
+        graph_layout,
+        graph_path,
+        load_graph,
+        load_valid_graph,
+        main_route,
+        ordered_nodes,
+        remove_edge,
+        safe_load_graph,
+        save_graph,
+        set_main_next,
+        set_start,
+        successors,
+    )
+    from story_nodes import StoryNodeError, create_node, inspect_node_folder, list_nodes, load_node
 
 app = Flask(__name__)
 
 WORKS_ROOT = (Path(__file__).resolve().parent.parent / "works").resolve()
 ALLOWED_SUFFIXES = {".txt", ".md"}
+MAX_ILLUSTRATION_BYTES = 8 * 1024 * 1024
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 WORKS_ROOT.mkdir(parents=True, exist_ok=True)
 
@@ -92,6 +133,22 @@ def build_child_path(parent_path: str, name: str) -> str:
     return child.as_posix() if str(child) != "." else ""
 
 
+def is_graph_work_folder(directory: Path) -> bool:
+    if (directory / "graph.json").exists():
+        return True
+    return bool(list_nodes(WORKS_ROOT, directory))
+
+
+def has_valid_graph(work_dir: Path) -> bool:
+    if not graph_path(work_dir).is_file():
+        return False
+    try:
+        load_valid_graph(work_dir)
+    except (StoryGraphError, StoryNodeError):
+        return False
+    return True
+
+
 def safe_directory_entries(directory: Path) -> tuple[list[dict], list[dict]]:
     folders = []
     files = []
@@ -104,11 +161,24 @@ def safe_directory_entries(directory: Path) -> tuple[list[dict], list[dict]]:
             continue
 
         if entry.is_dir():
+            node_inspection = inspect_node_folder(WORKS_ROOT, entry)
             folders.append(
                 {
                     "name": entry.name,
                     "path": relative_path_for(resolved),
                     "last_modified": datetime.fromtimestamp(entry.stat().st_mtime),
+                    "work": {
+                        "is_graph_work": is_graph_work_folder(entry),
+                    },
+                    "node": {
+                        "is_node": node_inspection.is_node,
+                        "is_candidate": node_inspection.is_candidate,
+                        "title": node_inspection.manifest.title if node_inspection.manifest else "",
+                        "status": node_inspection.manifest.status if node_inspection.manifest else "",
+                        "missing_required": node_inspection.missing_required,
+                        "errors": node_inspection.errors,
+                        "optional_files": node_inspection.optional_files,
+                    },
                 }
             )
             continue
@@ -128,7 +198,7 @@ def safe_directory_entries(directory: Path) -> tuple[list[dict], list[dict]]:
     return folders, files
 
 
-def render_folder(current_path: str):
+def render_folder(current_path: str, *, raw_mode: bool = False):
     folder_path = resolve_path(current_path, expect="dir")
     folders, files = safe_directory_entries(folder_path)
 
@@ -139,6 +209,9 @@ def render_folder(current_path: str):
         parent_path=get_parent_path(current_path),
         folders=folders,
         files=files,
+        graph_path=normalize_relative_path(current_path),
+        raw_mode=raw_mode,
+        show_graph_link=raw_mode and has_valid_graph(folder_path),
         notice=request.args.get("notice", ""),
         error=request.args.get("error", ""),
     )
@@ -157,6 +230,136 @@ def redirect_to_folder(current_path: str, *, notice: str = "", error: str = ""):
     return redirect(url_for(endpoint, **kwargs))
 
 
+def redirect_to_graph(work_path: str, *, notice: str = "", error: str = ""):
+    kwargs = {"path": normalize_relative_path(work_path)}
+    if notice:
+        kwargs["notice"] = notice
+    if error:
+        kwargs["error"] = error
+    return redirect(url_for("view_graph", **kwargs))
+
+
+def file_stats(file_path: Path) -> dict:
+    content = file_path.read_text(encoding="utf-8")
+    return {
+        "path": relative_path_for(file_path),
+        "name": file_path.name,
+        "length": len(content),
+        "last_modified": datetime.fromtimestamp(file_path.stat().st_mtime),
+    }
+
+
+def validate_png_image(data: bytes) -> None:
+    if not data:
+        abort(400, description="Image data is required.")
+    if len(data) > MAX_ILLUSTRATION_BYTES:
+        abort(413, description="Image is too large.")
+    if not data.startswith(PNG_SIGNATURE):
+        abort(400, description="Only PNG image data is supported.")
+
+    offset = len(PNG_SIGNATURE)
+    seen_ihdr = False
+    seen_idat = False
+    seen_iend = False
+    seen_plte = False
+    plte_is_valid = False
+    chunk_index = 0
+    ihdr_data = b""
+    idat_chunks: list[bytes] = []
+    try:
+        while offset < len(data):
+            if offset + 8 > len(data):
+                abort(400, description="Invalid PNG image data.")
+            chunk_length = struct.unpack(">I", data[offset : offset + 4])[0]
+            chunk_type = data[offset + 4 : offset + 8]
+            offset += 8
+            chunk_end = offset + chunk_length
+            crc_end = chunk_end + 4
+            if crc_end > len(data):
+                abort(400, description="Invalid PNG image data.")
+            chunk_data = data[offset:chunk_end]
+            expected_crc = struct.unpack(">I", data[chunk_end:crc_end])[0]
+            actual_crc = zlib.crc32(chunk_type)
+            actual_crc = zlib.crc32(chunk_data, actual_crc) & 0xFFFFFFFF
+            if actual_crc != expected_crc:
+                abort(400, description="Invalid PNG image data.")
+            if chunk_type == b"IHDR":
+                if chunk_index != 0 or chunk_length != 13:
+                    abort(400, description="Invalid PNG image data.")
+                seen_ihdr = True
+                ihdr_data = chunk_data
+            elif not seen_ihdr:
+                abort(400, description="Invalid PNG image data.")
+            if chunk_type == b"PLTE":
+                if seen_idat:
+                    abort(400, description="Invalid PNG image data.")
+                seen_plte = True
+                plte_is_valid = chunk_length > 0 and chunk_length % 3 == 0 and chunk_length <= 768
+            if chunk_type == b"IDAT":
+                seen_idat = True
+                idat_chunks.append(chunk_data)
+            if chunk_type == b"IEND":
+                if chunk_length != 0:
+                    abort(400, description="Invalid PNG image data.")
+                seen_iend = True
+                offset = crc_end
+                break
+            offset = crc_end
+            chunk_index += 1
+    except struct.error:
+        abort(400, description="Invalid PNG image data.")
+
+    if not seen_ihdr or not seen_idat or not seen_iend or offset != len(data):
+        abort(400, description="Invalid PNG image data.")
+
+    validate_png_pixels(ihdr_data, b"".join(idat_chunks), seen_plte=seen_plte, plte_is_valid=plte_is_valid)
+
+
+def validate_png_pixels(ihdr_data: bytes, idat_data: bytes, *, seen_plte: bool, plte_is_valid: bool) -> None:
+    try:
+        width, height, bit_depth, color_type, compression, filter_method, interlace = struct.unpack(">IIBBBBB", ihdr_data)
+    except struct.error:
+        abort(400, description="Invalid PNG image data.")
+
+    if width < 1 or height < 1:
+        abort(400, description="Invalid PNG image data.")
+    if compression != 0 or filter_method != 0 or interlace != 0:
+        abort(400, description="Invalid PNG image data.")
+
+    allowed_bit_depths = {
+        0: {1, 2, 4, 8, 16},
+        2: {8, 16},
+        3: {1, 2, 4, 8},
+        4: {8, 16},
+        6: {8, 16},
+    }
+    if color_type not in allowed_bit_depths or bit_depth not in allowed_bit_depths[color_type]:
+        abort(400, description="Invalid PNG image data.")
+    if color_type == 3 and (not seen_plte or not plte_is_valid):
+        abort(400, description="Invalid PNG image data.")
+
+    channels = {
+        0: 1,
+        2: 3,
+        3: 1,
+        4: 2,
+        6: 4,
+    }[color_type]
+    bits_per_scanline = width * channels * bit_depth
+    scanline_length = 1 + ((bits_per_scanline + 7) // 8)
+    expected_length = scanline_length * height
+
+    try:
+        pixels = zlib.decompress(idat_data)
+    except zlib.error:
+        abort(400, description="Invalid PNG image data.")
+    if len(pixels) != expected_length:
+        abort(400, description="Invalid PNG image data.")
+    for row_start in range(0, len(pixels), scanline_length):
+        if pixels[row_start] > 4:
+            abort(400, description="Invalid PNG image data.")
+
+
 @app.route("/")
 def index():
     return render_folder("")
@@ -164,7 +367,130 @@ def index():
 
 @app.route("/folder")
 def view_folder():
-    return render_folder(request.args.get("path", ""))
+    return render_folder(request.args.get("path", ""), raw_mode=True)
+
+
+@app.route("/node")
+def view_node():
+    node_dir = resolve_path(request.args.get("path", ""), expect="dir")
+    try:
+        node = load_node(WORKS_ROOT, node_dir)
+    except StoryNodeError as exc:
+        abort(404, description=str(exc))
+
+    main_file = file_stats(node_dir / "main.md")
+    free_memo = file_stats(node_dir / "free_memo.md") if (node_dir / "free_memo.md").is_file() else None
+    illustration = None
+    if (node_dir / "illust.png").is_file():
+        illustration = {
+            "name": "illust.png",
+            "path": relative_path_for(node_dir / "illust.png"),
+            "last_modified": datetime.fromtimestamp((node_dir / "illust.png").stat().st_mtime),
+        }
+
+    return render_template(
+        "node_overview.html",
+        node=node,
+        main_file=main_file,
+        free_memo=free_memo,
+        illustration=illustration,
+        parent_path=get_parent_path(relative_path_for(node_dir)),
+        graph_path=get_parent_path(relative_path_for(node_dir)) or "",
+        show_graph_link=has_valid_graph(node_dir.parent),
+    )
+
+
+@app.route("/graph")
+def view_graph():
+    work_dir = resolve_path(request.args.get("path", ""), expect="dir")
+    work_path = relative_path_for(work_dir)
+    nodes = list_nodes_for_graph(work_dir)
+    graph, graph_errors = safe_load_graph(work_dir)
+    display_nodes = ordered_nodes(graph, nodes)
+    layout = graph_layout(graph, nodes)
+    successor_map = successors(graph)
+    main_route_nodes = main_route(graph)
+    main_route_edges = set(zip(main_route_nodes, main_route_nodes[1:]))
+    graph_edges = [
+        {
+            "source": edge.source,
+            "target": edge.target,
+            "is_main": (edge.source, edge.target) in main_route_edges,
+        }
+        for edge in graph.edges
+    ]
+
+    return render_template(
+        "graph.html",
+        work_path=work_path,
+        work_name="works" if work_dir == WORKS_ROOT else work_dir.name,
+        parent_path=get_parent_path(work_path),
+        nodes=display_nodes,
+        layout=layout,
+        graph=graph,
+        graph_edges=graph_edges,
+        successor_map=successor_map,
+        main_route_nodes=main_route_nodes,
+        node_path_by_id={node.id: node.path for node in nodes},
+        graph_errors=graph_errors,
+        notice=request.args.get("notice", ""),
+        error=request.args.get("error", ""),
+    )
+
+
+@app.route("/node_asset")
+def node_asset():
+    node_dir = resolve_path(request.args.get("path", ""), expect="dir")
+    try:
+        load_node(WORKS_ROOT, node_dir)
+    except StoryNodeError as exc:
+        abort(404, description=str(exc))
+
+    name = request.args.get("name", "")
+    if name != "illust.png":
+        abort(404, description="Asset not found.")
+
+    asset_path = (node_dir / name).resolve()
+    try:
+        asset_path.relative_to(node_dir.resolve())
+    except ValueError:
+        abort(400, description="Invalid asset path.")
+    if not asset_path.is_file():
+        abort(404, description="Asset not found.")
+
+    return send_file(asset_path)
+
+
+@app.route("/node/illustration", methods=["POST"])
+def upload_node_illustration():
+    node_dir = resolve_path(request.form.get("node_path", ""), expect="dir")
+    try:
+        load_node(WORKS_ROOT, node_dir)
+    except StoryNodeError as exc:
+        abort(404, description=str(exc))
+
+    upload = request.files.get("image")
+    if upload is None:
+        abort(400, description="Image file is required.")
+    if upload.mimetype != "image/png":
+        abort(400, description="Only PNG image data is supported.")
+
+    data = upload.read(MAX_ILLUSTRATION_BYTES + 1)
+    validate_png_image(data)
+    destination = (node_dir / "illust.png").resolve()
+    try:
+        destination.relative_to(node_dir.resolve())
+    except ValueError:
+        abort(400, description="Invalid illustration path.")
+
+    destination.write_bytes(data)
+    return jsonify(
+        {
+            "message": "Illustration saved.",
+            "path": relative_path_for(destination),
+            "last_modified": datetime.fromtimestamp(destination.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+        }
+    )
 
 
 @app.route("/edit")
@@ -172,12 +498,19 @@ def edit_file():
     raw_path = request.args.get("path", "")
     file_path = resolve_path(raw_path, expect="file")
     content = file_path.read_text(encoding="utf-8")
+    node_path = ""
+    try:
+        node = load_node(WORKS_ROOT, file_path.parent)
+        node_path = node.path
+    except StoryNodeError:
+        pass
 
     return render_template(
         "editor.html",
         file_path=relative_path_for(file_path),
         file_name=file_path.name,
         folder_path=get_parent_path(relative_path_for(file_path)) or "",
+        node_path=node_path,
         content=content,
         length=len(content),
         last_modified=datetime.fromtimestamp(file_path.stat().st_mtime),
@@ -231,6 +564,109 @@ def create_folder():
 
     new_folder.mkdir()
     return redirect_to_folder(relative_path_for(new_folder), notice="Folder created.")
+
+
+@app.route("/create_node", methods=["POST"])
+def create_story_node():
+    current_path = request.form.get("current_path", "")
+    directory = resolve_path(current_path, expect="dir")
+    folder_name = validate_name(request.form.get("name"), expect_file=False)
+    title = request.form.get("title", "")
+
+    try:
+        node = create_node(WORKS_ROOT, directory, folder_name, title=title)
+    except StoryNodeError as exc:
+        return redirect_to_folder(current_path, error=str(exc))
+
+    return redirect(url_for("view_node", path=node.path))
+
+
+def list_nodes_for_graph(work_dir: Path) -> list:
+    return list_nodes(WORKS_ROOT, work_dir)
+
+
+def load_graph_form_context() -> tuple[Path, str, list, object]:
+    work_dir = resolve_path(request.form.get("work_path", ""), expect="dir")
+    nodes = list_nodes_for_graph(work_dir)
+    graph = load_graph(work_dir)
+    return work_dir, relative_path_for(work_dir), nodes, graph
+
+
+@app.route("/graph/create_node", methods=["POST"])
+def graph_create_node():
+    work_dir = resolve_path(request.form.get("work_path", ""), expect="dir")
+    work_path = relative_path_for(work_dir)
+    folder_name = validate_name(request.form.get("name"), expect_file=False)
+    title = request.form.get("title", "")
+
+    try:
+        create_node(WORKS_ROOT, work_dir, folder_name, title=title)
+    except StoryNodeError as exc:
+        return redirect_to_graph(work_path, error=str(exc))
+
+    return redirect_to_graph(work_path, notice="Story node created.")
+
+
+@app.route("/graph/set_start", methods=["POST"])
+def graph_set_start():
+    try:
+        work_dir, work_path, nodes, graph = load_graph_form_context()
+        graph = set_start(graph, nodes, request.form.get("start") or None)
+        save_graph(work_dir, graph)
+    except (StoryGraphError, StoryNodeError) as exc:
+        return redirect_to_graph(request.form.get("work_path", ""), error=str(exc))
+
+    return redirect_to_graph(work_path, notice="Start node updated.")
+
+
+@app.route("/graph/add_edge", methods=["POST"])
+def graph_add_edge():
+    try:
+        work_dir, work_path, nodes, graph = load_graph_form_context()
+        graph = add_edge(graph, nodes, request.form.get("source", "").strip(), request.form.get("target", "").strip())
+        save_graph(work_dir, graph)
+    except (StoryGraphError, StoryNodeError) as exc:
+        return redirect_to_graph(request.form.get("work_path", ""), error=str(exc))
+
+    return redirect_to_graph(work_path, notice="Edge added.")
+
+
+@app.route("/graph/delete_edge", methods=["POST"])
+def graph_delete_edge():
+    try:
+        work_dir, work_path, nodes, graph = load_graph_form_context()
+        graph = remove_edge(graph, request.form.get("source", "").strip(), request.form.get("target", "").strip())
+        set_start(graph, nodes, graph.start)
+        save_graph(work_dir, graph)
+    except (StoryGraphError, StoryNodeError) as exc:
+        return redirect_to_graph(request.form.get("work_path", ""), error=str(exc))
+
+    return redirect_to_graph(work_path, notice="Edge deleted.")
+
+
+@app.route("/graph/set_main", methods=["POST"])
+def graph_set_main():
+    try:
+        work_dir, work_path, nodes, graph = load_graph_form_context()
+        edge_choice = request.form.get("edge", "")
+        if edge_choice:
+            if "\t" not in edge_choice:
+                raise StoryGraphError("Main route edge is invalid.")
+            source, target = edge_choice.split("\t", 1)
+        else:
+            source = request.form.get("source", "").strip()
+            target = request.form.get("target", "").strip()
+        graph = set_main_next(
+            graph,
+            nodes,
+            source.strip(),
+            target.strip() or None,
+        )
+        save_graph(work_dir, graph)
+    except (StoryGraphError, StoryNodeError) as exc:
+        return redirect_to_graph(request.form.get("work_path", ""), error=str(exc))
+
+    return redirect_to_graph(work_path, notice="Main route updated.")
 
 
 @app.route("/rename", methods=["POST"])

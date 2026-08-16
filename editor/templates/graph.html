@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+	<meta charset="UTF-8">
+	<title>{{ work_name }} Graph</title>
+	<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+	<div class="main-content graph-content">
+		<header class="page-header">
+			<div>
+				<h1>{{ work_name }} Graph</h1>
+				<p class="path-label">現在地: works{% if work_path %}/{{ work_path }}{% endif %}</p>
+			</div>
+			<div class="header-actions">
+				<a class="nav-link" href="{{ url_for('index') }}">作品一覧</a>
+			</div>
+		</header>
+
+		{% if notice %}
+		<p class="message success">{{ notice }}</p>
+		{% endif %}
+		{% if error %}
+		<p class="message error">{{ error }}</p>
+		{% endif %}
+		{% for graph_error in graph_errors %}
+		<p class="message error">{{ graph_error }}</p>
+		{% endfor %}
+
+		<section class="panel graph-board">
+			<div class="graph-route">
+				<span class="meta">Main</span>
+				{% if main_route_nodes %}
+				{% for node_id in main_route_nodes %}
+				<a href="{{ url_for('view_node', path=node_path_by_id[node_id]) }}">{{ node_id }}</a>
+				{% if not loop.last %}<span class="route-arrow">→</span>{% endif %}
+				{% endfor %}
+				{% else %}
+				<span class="empty-state">未設定</span>
+				{% endif %}
+			</div>
+
+			<div class="graph-visual-scroll">
+				<div class="graph-visual" style="width: {{ layout.width }}px; height: {{ layout.height }}px;">
+					<svg
+						class="graph-edge-layer"
+						width="{{ layout.width }}"
+						height="{{ layout.height }}"
+						viewBox="0 0 {{ layout.width }} {{ layout.height }}"
+						aria-hidden="true"
+					>
+						<defs>
+							<marker id="graph-arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+								<path d="M 0 0 L 12 6 L 0 12 z"></path>
+							</marker>
+							<marker id="graph-arrow-main" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+								<path d="M 0 0 L 12 6 L 0 12 z"></path>
+							</marker>
+						</defs>
+						{% for edge in layout.edges %}
+						<path
+							class="graph-edge{% if edge.is_main %} is-main-route{% endif %}"
+							data-edge-source="{{ edge.source }}"
+							data-edge-target="{{ edge.target }}"
+							data-main-route="{{ 'true' if edge.is_main else 'false' }}"
+							d="{{ edge.path }}"
+						></path>
+						{% endfor %}
+					</svg>
+
+					{% for node in layout.nodes %}
+					<a
+						class="graph-node-card graph-node-box{% if node.is_main %} is-main-route{% endif %}"
+						data-node-id="{{ node.id }}"
+						data-rank="{{ node.rank }}"
+						data-lane="{{ node.lane }}"
+						data-x="{{ node.x }}"
+						data-y="{{ node.y }}"
+						href="{{ url_for('view_node', path=node.path) }}"
+						style="left: {{ node.x }}px; top: {{ node.y }}px; width: {{ node.width }}px; height: {{ node.height }}px;"
+					>
+						<span class="graph-node-title">{{ node.title or node.id }}</span>
+						<span class="graph-node-id">{{ node.id }}</span>
+						<span class="graph-node-badges">
+							{% if node.is_start %}<span class="node-badge">start</span>{% endif %}
+							{% if node.is_main %}<span class="node-badge">main</span>{% endif %}
+							{% if node.is_branch %}<span class="node-badge branch-badge">branch</span>{% endif %}
+							{% if node.is_merge %}<span class="node-badge merge-badge">merge</span>{% endif %}
+						</span>
+					</a>
+					{% endfor %}
+
+					{% if not layout.nodes %}
+				<p class="empty-state">話ノードがありません。</p>
+				{% endif %}
+				</div>
+			</div>
+		</section>
+
+		<section class="panel">
+			<h2>Edges</h2>
+			<ul class="entry-list">
+				{% for edge in graph_edges %}
+				<li class="entry-row">
+					<div class="entry-main">
+						<span class="entry-link">{{ edge.source }} → {{ edge.target }}</span>
+						{% if edge.is_main %}<span class="node-badge">main route</span>{% endif %}
+					</div>
+					<div class="entry-actions">
+						<form action="{{ url_for('graph_delete_edge') }}" method="post" class="inline-form">
+							<input type="hidden" name="work_path" value="{{ work_path }}">
+							<input type="hidden" name="source" value="{{ edge.source }}">
+							<input type="hidden" name="target" value="{{ edge.target }}">
+							<button type="submit">Delete</button>
+						</form>
+					</div>
+				</li>
+				{% endfor %}
+				{% if not graph_edges %}
+				<li class="empty-state">edgeがありません。</li>
+				{% endif %}
+			</ul>
+		</section>
+
+		<section class="panel form-panel">
+			<div class="form-block">
+				<h2>新しい話ノード</h2>
+				<form action="{{ url_for('graph_create_node') }}" method="post" class="stack-form">
+					<input type="hidden" name="work_path" value="{{ work_path }}">
+					<input type="text" name="name" placeholder="node-id" required>
+					<input type="text" name="title" placeholder="title">
+					<button type="submit">Create Node</button>
+				</form>
+			</div>
+
+			<div class="form-block">
+				<h2>Start</h2>
+				<form action="{{ url_for('graph_set_start') }}" method="post" class="stack-form">
+					<input type="hidden" name="work_path" value="{{ work_path }}">
+					<select name="start">
+						<option value="">未設定</option>
+						{% for node in nodes %}
+						<option value="{{ node.id }}"{% if graph.start == node.id %} selected{% endif %}>{{ node.id }}{% if node.title %} / {{ node.title }}{% endif %}</option>
+						{% endfor %}
+					</select>
+					<button type="submit">Set Start</button>
+				</form>
+			</div>
+
+			<div class="form-block">
+				<h2>Edge追加</h2>
+				<form action="{{ url_for('graph_add_edge') }}" method="post" class="stack-form">
+					<input type="hidden" name="work_path" value="{{ work_path }}">
+					<select name="source" required>
+						{% for node in nodes %}
+						<option value="{{ node.id }}">{{ node.id }}{% if node.title %} / {{ node.title }}{% endif %}</option>
+						{% endfor %}
+					</select>
+					<select name="target" required>
+						{% for node in nodes %}
+						<option value="{{ node.id }}">{{ node.id }}{% if node.title %} / {{ node.title }}{% endif %}</option>
+						{% endfor %}
+					</select>
+					<button type="submit">Add Edge</button>
+				</form>
+			</div>
+
+			<div class="form-block">
+				<h2>Main切替</h2>
+				<form action="{{ url_for('graph_set_main') }}" method="post" class="stack-form">
+					<input type="hidden" name="work_path" value="{{ work_path }}">
+					<select name="edge" required>
+						{% for edge in graph_edges %}
+						<option value="{{ edge.source }}	{{ edge.target }}"{% if edge.is_main %} selected{% endif %}>{{ edge.source }} → {{ edge.target }}</option>
+						{% endfor %}
+					</select>
+					<button type="submit">Set Main</button>
+				</form>
+			</div>
+		</section>
+	</div>
+	<script src="/static/js/index.js"></script>
+</body>
+</html>

@@ -13,9 +13,14 @@
 				<p class="path-label">現在地: works{% if current_path %}/{{ current_path }}{% endif %}</p>
 			</div>
 			<div class="header-actions">
-				<a class="nav-link" href="{{ url_for('index') }}">Root</a>
+				<a class="nav-link" href="{{ url_for('index') }}">作品一覧</a>
+				{% if show_graph_link %}
+				<a class="nav-link" href="{{ url_for('view_graph', path=graph_path) }}">Graph</a>
+				{% endif %}
+				{% if raw_mode %}
 				{% if parent_path is not none %}
 				<a class="nav-link" href="{{ url_for('index') if parent_path == '' else url_for('view_folder', path=parent_path) }}">..</a>
+				{% endif %}
 				{% endif %}
 			</div>
 		</header>
@@ -33,7 +38,26 @@
 				{% for folder in folders %}
 				<li class="entry-row">
 					<div class="entry-main">
+						{% if raw_mode %}
 						<a class="entry-link" href="{{ url_for('view_folder', path=folder.path) }}">{{ folder.name }}/</a>
+						{% if folder.node.is_node %}
+						<span class="node-badge">話ノード{% if folder.node.title %}: {{ folder.node.title }}{% endif %} / {{ folder.node.status }}</span>
+						{% endif %}
+						{% elif folder.work.is_graph_work %}
+						<a class="entry-link" href="{{ url_for('view_graph', path=folder.path) }}">{{ folder.name }}/</a>
+						<span class="node-badge">Graph</span>
+						{% elif folder.node.is_node %}
+						<a class="entry-link" href="{{ url_for('view_node', path=folder.path) }}">{{ folder.name }}/</a>
+						<span class="node-badge">話ノード{% if folder.node.title %}: {{ folder.node.title }}{% endif %} / {{ folder.node.status }}</span>
+						{% else %}
+						<a class="entry-link" href="{{ url_for('view_folder', path=folder.path) }}">{{ folder.name }}/</a>
+						{% endif %}
+						{% if not folder.node.is_node and folder.node.is_candidate and (folder.node.missing_required or folder.node.errors) %}
+						<span class="node-badge node-badge-warning">
+							{% if folder.node.missing_required %}必須不足: {{ folder.node.missing_required | join(', ') }}{% endif %}
+							{% if folder.node.errors %} manifest不正{% endif %}
+						</span>
+						{% endif %}
 						<span class="meta">更新: {{ folder.last_modified.strftime('%Y-%m-%d %H:%M') }}</span>
 					</div>
 					<div class="entry-actions">
@@ -88,6 +112,17 @@
 					<input type="text" name="name" placeholder="folder-name" required>
 					<button type="submit">Create Folder</button>
 				</form>
+			</div>
+
+			<div class="form-block">
+				<h2>新しい話ノード</h2>
+				<form action="{{ url_for('create_story_node') }}" method="post" class="stack-form">
+					<input type="hidden" name="current_path" value="{{ current_path }}">
+					<input type="text" name="name" placeholder="node-id" required>
+					<input type="text" name="title" placeholder="title">
+					<button type="submit">Create Node</button>
+				</form>
+				<p class="hint">`main.md` と `manifest.json` を自動生成します。</p>
 			</div>
 
 			<div class="form-block">
