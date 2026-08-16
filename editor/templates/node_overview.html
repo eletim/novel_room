@@ -88,7 +88,22 @@
 				<img src="{{ url_for('node_asset', path=node.path, name='illust.png') }}" alt="{{ node.title or node.id }}">
 			</div>
 			{% endif %}
+			<div class="illustration-upload" data-node-path="{{ node.path }}">
+				<div class="paste-target" tabindex="0">
+					<span>ここに画像を貼り付け / Ctrl+V</span>
+				</div>
+				<div class="illustration-preview" hidden>
+					<img alt="illust.png preview">
+				</div>
+				<p class="message error illustration-error" hidden></p>
+				<p class="message success illustration-status" hidden></p>
+				<div class="illustration-actions">
+					<button type="button" class="illustration-upload-button" disabled>{% if illustration %}Replace{% else %}Upload{% endif %}</button>
+					<button type="button" class="illustration-cancel-button" disabled>取消</button>
+				</div>
+			</div>
 		</section>
 	</div>
+	<script src="/static/js/node_illustration.js"></script>
 </body>
 </html>

@@ -36,6 +36,8 @@ app = Flask(__name__)
 
 WORKS_ROOT = (Path(__file__).resolve().parent.parent / "works").resolve()
 ALLOWED_SUFFIXES = {".txt", ".md"}
+MAX_ILLUSTRATION_BYTES = 8 * 1024 * 1024
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 WORKS_ROOT.mkdir(parents=True, exist_ok=True)
 
@@ -216,6 +218,15 @@ def file_stats(file_path: Path) -> dict:
     }
 
 
+def validate_png_image(data: bytes) -> None:
+    if not data:
+        abort(400, description="Image data is required.")
+    if len(data) > MAX_ILLUSTRATION_BYTES:
+        abort(413, description="Image is too large.")
+    if not data.startswith(PNG_SIGNATURE):
+        abort(400, description="Only PNG image data is supported.")
+
+
 @app.route("/")
 def index():
     return render_folder("")
@@ -312,6 +323,38 @@ def node_asset():
         abort(404, description="Asset not found.")
 
     return send_file(asset_path)
+
+
+@app.route("/node/illustration", methods=["POST"])
+def upload_node_illustration():
+    node_dir = resolve_path(request.form.get("node_path", ""), expect="dir")
+    try:
+        load_node(WORKS_ROOT, node_dir)
+    except StoryNodeError as exc:
+        abort(404, description=str(exc))
+
+    upload = request.files.get("image")
+    if upload is None:
+        abort(400, description="Image file is required.")
+    if upload.mimetype != "image/png":
+        abort(400, description="Only PNG image data is supported.")
+
+    data = upload.read(MAX_ILLUSTRATION_BYTES + 1)
+    validate_png_image(data)
+    destination = (node_dir / "illust.png").resolve()
+    try:
+        destination.relative_to(node_dir.resolve())
+    except ValueError:
+        abort(400, description="Invalid illustration path.")
+
+    destination.write_bytes(data)
+    return jsonify(
+        {
+            "message": "Illustration saved.",
+            "path": relative_path_for(destination),
+            "last_modified": datetime.fromtimestamp(destination.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+        }
+    )
 
 
 @app.route("/edit")
