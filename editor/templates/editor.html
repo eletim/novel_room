@@ -7,7 +7,11 @@
 </head>
 <body class="editor-page">
 	<header class="editor-bar">
+		{% if node_path %}
+		<a class="editor-back" href="{{ url_for('view_node', path=node_path) }}">Node</a>
+		{% else %}
 		<a class="editor-back" href="{{ url_for('index') if folder_path == '' else url_for('view_folder', path=folder_path) }}">Back</a>
+		{% endif %}
 		<span class="editor-file-name">{{ file_name }}</span>
 		<span id="save-status">自動保存待機中</span>
 		<span id="char-count">文字数: {{ length }}</span>

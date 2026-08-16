@@ -13,10 +13,14 @@
 				<p class="path-label">現在地: works{% if current_path %}/{{ current_path }}{% endif %}</p>
 			</div>
 			<div class="header-actions">
-				<a class="nav-link" href="{{ url_for('index') }}">Root</a>
+				<a class="nav-link" href="{{ url_for('index') }}">作品一覧</a>
+				{% if show_graph_link %}
 				<a class="nav-link" href="{{ url_for('view_graph', path=graph_path) }}">Graph</a>
+				{% endif %}
+				{% if raw_mode %}
 				{% if parent_path is not none %}
 				<a class="nav-link" href="{{ url_for('index') if parent_path == '' else url_for('view_folder', path=parent_path) }}">..</a>
+				{% endif %}
 				{% endif %}
 			</div>
 		</header>
@@ -42,11 +46,9 @@
 						{% elif folder.work.is_graph_work %}
 						<a class="entry-link" href="{{ url_for('view_graph', path=folder.path) }}">{{ folder.name }}/</a>
 						<span class="node-badge">Graph</span>
-						<a class="raw-folder-link" href="{{ url_for('view_folder', path=folder.path) }}">Raw Folder</a>
 						{% elif folder.node.is_node %}
 						<a class="entry-link" href="{{ url_for('view_node', path=folder.path) }}">{{ folder.name }}/</a>
 						<span class="node-badge">話ノード{% if folder.node.title %}: {{ folder.node.title }}{% endif %} / {{ folder.node.status }}</span>
-						<a class="raw-folder-link" href="{{ url_for('view_folder', path=folder.path) }}">Raw Folder</a>
 						{% else %}
 						<a class="entry-link" href="{{ url_for('view_folder', path=folder.path) }}">{{ folder.name }}/</a>
 						{% endif %}

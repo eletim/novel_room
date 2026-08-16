@@ -23,7 +23,7 @@ class GraphUiRouteTests(unittest.TestCase):
         app_module.WORKS_ROOT = self.previous_root
         self.tmpdir.cleanup()
 
-    def test_graph_page_renders_nodes_and_raw_folder_link(self):
+    def test_graph_page_renders_nodes_without_raw_or_filesystem_links(self):
         create_node(self.root, self.work_dir, "01", title="Start")
 
         response = self.client.get("/graph?path=work")
@@ -32,9 +32,12 @@ class GraphUiRouteTests(unittest.TestCase):
         body = response.get_data(as_text=True)
         self.assertIn("work Graph", body)
         self.assertIn("/node?path=work/01", body)
-        self.assertIn("/folder?path=work", body)
+        self.assertNotIn('href="/folder?path=work"', body)
+        self.assertNotIn(">Raw Folder<", body)
+        self.assertNotIn(">..<", body)
+        self.assertNotIn('href="/graph?path=work"', body)
 
-    def test_work_entry_opens_graph_and_keeps_explicit_raw_folder_link(self):
+    def test_work_entry_opens_graph_without_raw_folder_link(self):
         create_node(self.root, self.work_dir, "01", title="Start")
 
         response = self.client.get("/")
@@ -42,7 +45,8 @@ class GraphUiRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.get_data(as_text=True)
         self.assertIn('/graph?path=work"', body)
-        self.assertIn('/folder?path=work"', body)
+        self.assertNotIn('Raw Folder', body)
+        self.assertNotIn('/folder?path=work"', body)
 
     def test_raw_folder_keeps_generic_folder_operations(self):
         create_node(self.root, self.work_dir, "01", title="Start")
@@ -146,6 +150,22 @@ class GraphUiRouteTests(unittest.TestCase):
         body = response.get_data(as_text=True)
         self.assertIn('class="graph-node-card graph-node-box', body)
         self.assertIn('href="/node?path=work/01"', body)
+
+    def test_graph_node_main_text_navigation_chain(self):
+        create_node(self.root, self.work_dir, "01", title="Start")
+        save_graph(self.work_dir, StoryGraph(start="01", edges=(), main_next={}))
+
+        graph_response = self.client.get("/graph?path=work")
+        self.assertIn('href="/node?path=work/01"', graph_response.get_data(as_text=True))
+
+        node_response = self.client.get("/node?path=work/01")
+        node_body = node_response.get_data(as_text=True)
+        self.assertIn('href="/graph?path=work"', node_body)
+        self.assertIn("/edit?path=work/01/main.md", node_body)
+
+        editor_response = self.client.get("/edit?path=work/01/main.md")
+        editor_body = editor_response.get_data(as_text=True)
+        self.assertIn('href="/node?path=work/01"', editor_body)
 
     def test_graph_invalid_or_missing_data_falls_back_safely(self):
         create_node(self.root, self.work_dir, "01")

@@ -10,7 +10,9 @@ try:
         StoryGraphError,
         add_edge,
         graph_layout,
+        graph_path,
         load_graph,
+        load_valid_graph,
         main_route,
         ordered_nodes,
         remove_edge,
@@ -26,7 +28,9 @@ except ImportError:
         StoryGraphError,
         add_edge,
         graph_layout,
+        graph_path,
         load_graph,
+        load_valid_graph,
         main_route,
         ordered_nodes,
         remove_edge,
@@ -135,6 +139,16 @@ def is_graph_work_folder(directory: Path) -> bool:
     return bool(list_nodes(WORKS_ROOT, directory))
 
 
+def has_valid_graph(work_dir: Path) -> bool:
+    if not graph_path(work_dir).is_file():
+        return False
+    try:
+        load_valid_graph(work_dir)
+    except (StoryGraphError, StoryNodeError):
+        return False
+    return True
+
+
 def safe_directory_entries(directory: Path) -> tuple[list[dict], list[dict]]:
     folders = []
     files = []
@@ -197,6 +211,7 @@ def render_folder(current_path: str, *, raw_mode: bool = False):
         files=files,
         graph_path=normalize_relative_path(current_path),
         raw_mode=raw_mode,
+        show_graph_link=raw_mode and has_valid_graph(folder_path),
         notice=request.args.get("notice", ""),
         error=request.args.get("error", ""),
     )
@@ -379,9 +394,9 @@ def view_node():
         main_file=main_file,
         free_memo=free_memo,
         illustration=illustration,
-        raw_folder_path=relative_path_for(node_dir),
         parent_path=get_parent_path(relative_path_for(node_dir)),
         graph_path=get_parent_path(relative_path_for(node_dir)) or "",
+        show_graph_link=has_valid_graph(node_dir.parent),
     )
 
 
@@ -483,12 +498,19 @@ def edit_file():
     raw_path = request.args.get("path", "")
     file_path = resolve_path(raw_path, expect="file")
     content = file_path.read_text(encoding="utf-8")
+    node_path = ""
+    try:
+        node = load_node(WORKS_ROOT, file_path.parent)
+        node_path = node.path
+    except StoryNodeError:
+        pass
 
     return render_template(
         "editor.html",
         file_path=relative_path_for(file_path),
         file_name=file_path.name,
         folder_path=get_parent_path(relative_path_for(file_path)) or "",
+        node_path=node_path,
         content=content,
         length=len(content),
         last_modified=datetime.fromtimestamp(file_path.stat().st_mtime),
