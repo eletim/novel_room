@@ -87,6 +87,15 @@ class IllustrationUploadTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse((self.root / "01" / "illust.png").exists())
 
+    def test_upload_rejects_png_without_image_data_chunk(self):
+        ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0)
+        no_idat_png = b"\x89PNG\r\n\x1a\n" + png_chunk(b"IHDR", ihdr) + png_chunk(b"IEND", b"")
+
+        response = self.post_png(no_idat_png)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse((self.root / "01" / "illust.png").exists())
+
     def test_invalid_replacement_keeps_existing_illust_png(self):
         (self.root / "01" / "illust.png").write_bytes(PNG_BYTES)
 

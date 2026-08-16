@@ -230,7 +230,9 @@ def validate_png_image(data: bytes) -> None:
 
     offset = len(PNG_SIGNATURE)
     seen_ihdr = False
+    seen_idat = False
     seen_iend = False
+    chunk_index = 0
     try:
         while offset < len(data):
             if offset + 8 > len(data):
@@ -249,16 +251,25 @@ def validate_png_image(data: bytes) -> None:
             if actual_crc != expected_crc:
                 abort(400, description="Invalid PNG image data.")
             if chunk_type == b"IHDR":
+                if chunk_index != 0 or chunk_length != 13:
+                    abort(400, description="Invalid PNG image data.")
                 seen_ihdr = True
+            elif not seen_ihdr:
+                abort(400, description="Invalid PNG image data.")
+            if chunk_type == b"IDAT":
+                seen_idat = True
             if chunk_type == b"IEND":
+                if chunk_length != 0:
+                    abort(400, description="Invalid PNG image data.")
                 seen_iend = True
                 offset = crc_end
                 break
             offset = crc_end
+            chunk_index += 1
     except struct.error:
         abort(400, description="Invalid PNG image data.")
 
-    if not seen_ihdr or not seen_iend or offset != len(data):
+    if not seen_ihdr or not seen_idat or not seen_iend or offset != len(data):
         abort(400, description="Invalid PNG image data.")
 
 
