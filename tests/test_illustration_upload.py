@@ -1,14 +1,28 @@
 import io
+import struct
 import tempfile
 import unittest
+import zlib
 from pathlib import Path
 
 import editor.app as app_module
 from editor.story_nodes import create_node
 
 
-PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"test-png"
-REPLACEMENT_PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"replacement"
+def png_chunk(chunk_type, data):
+    crc = zlib.crc32(chunk_type)
+    crc = zlib.crc32(data, crc) & 0xFFFFFFFF
+    return struct.pack(">I", len(data)) + chunk_type + data + struct.pack(">I", crc)
+
+
+def png_bytes(pixel_data):
+    ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0)
+    idat = zlib.compress(b"\x00" + pixel_data)
+    return b"\x89PNG\r\n\x1a\n" + png_chunk(b"IHDR", ihdr) + png_chunk(b"IDAT", idat) + png_chunk(b"IEND", b"")
+
+
+PNG_BYTES = png_bytes(b"\xff\x00\x00\xff")
+REPLACEMENT_PNG_BYTES = png_bytes(b"\x00\x00\xff\xff")
 
 
 class IllustrationUploadTests(unittest.TestCase):
@@ -63,6 +77,12 @@ class IllustrationUploadTests(unittest.TestCase):
 
     def test_upload_rejects_invalid_png_data(self):
         response = self.post_png(b"not-png")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse((self.root / "01" / "illust.png").exists())
+
+    def test_upload_rejects_broken_png_with_valid_signature(self):
+        response = self.post_png(b"\x89PNG\r\n\x1a\nnot-a-real-png")
 
         self.assertEqual(response.status_code, 400)
         self.assertFalse((self.root / "01" / "illust.png").exists())

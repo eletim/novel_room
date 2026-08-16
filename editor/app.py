@@ -1,3 +1,5 @@
+import struct
+import zlib
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
@@ -225,6 +227,39 @@ def validate_png_image(data: bytes) -> None:
         abort(413, description="Image is too large.")
     if not data.startswith(PNG_SIGNATURE):
         abort(400, description="Only PNG image data is supported.")
+
+    offset = len(PNG_SIGNATURE)
+    seen_ihdr = False
+    seen_iend = False
+    try:
+        while offset < len(data):
+            if offset + 8 > len(data):
+                abort(400, description="Invalid PNG image data.")
+            chunk_length = struct.unpack(">I", data[offset : offset + 4])[0]
+            chunk_type = data[offset + 4 : offset + 8]
+            offset += 8
+            chunk_end = offset + chunk_length
+            crc_end = chunk_end + 4
+            if crc_end > len(data):
+                abort(400, description="Invalid PNG image data.")
+            chunk_data = data[offset:chunk_end]
+            expected_crc = struct.unpack(">I", data[chunk_end:crc_end])[0]
+            actual_crc = zlib.crc32(chunk_type)
+            actual_crc = zlib.crc32(chunk_data, actual_crc) & 0xFFFFFFFF
+            if actual_crc != expected_crc:
+                abort(400, description="Invalid PNG image data.")
+            if chunk_type == b"IHDR":
+                seen_ihdr = True
+            if chunk_type == b"IEND":
+                seen_iend = True
+                offset = crc_end
+                break
+            offset = crc_end
+    except struct.error:
+        abort(400, description="Invalid PNG image data.")
+
+    if not seen_ihdr or not seen_iend or offset != len(data):
+        abort(400, description="Invalid PNG image data.")
 
 
 @app.route("/")
