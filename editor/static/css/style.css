@@ -199,6 +199,46 @@ select {
 	border: 1px solid rgb(55, 55, 55);
 }
 
+.illustration-upload {
+	display: grid;
+	gap: 12px;
+	margin-top: 18px;
+}
+
+.paste-target {
+	display: grid;
+	place-items: center;
+	min-height: 130px;
+	border: 1px dashed rgb(95, 95, 95);
+	background-color: rgb(30, 30, 30);
+	color: rgb(150, 170, 195);
+	outline: none;
+}
+
+.paste-target:focus {
+	border-color: rgb(120, 150, 190);
+	color: rgb(220, 230, 245);
+}
+
+.illustration-preview img {
+	display: block;
+	max-width: min(100%, 720px);
+	max-height: 70vh;
+	object-fit: contain;
+	border: 1px solid rgb(80, 115, 85);
+}
+
+.illustration-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.illustration-actions button:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+
 .graph-content {
 	width: min(1280px, 94%);
 }
