@@ -133,6 +133,22 @@ input {
 	font-size: 24px;
 }
 
+.node-badge {
+	display: inline-block;
+	width: fit-content;
+	color: rgb(210, 225, 245);
+	background-color: rgb(45, 65, 50);
+	border: 1px solid rgb(80, 115, 85);
+	padding: 4px 8px;
+	font-size: 14px;
+}
+
+.node-badge-warning {
+	color: rgb(245, 215, 160);
+	background-color: rgb(70, 52, 35);
+	border-color: rgb(125, 88, 55);
+}
+
 .entry-actions {
 	flex-wrap: wrap;
 	justify-content: flex-end;

@@ -3,6 +3,11 @@ from pathlib import Path, PurePosixPath
 
 from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 
+try:
+    from .story_nodes import StoryNodeError, create_node, inspect_node_folder
+except ImportError:
+    from story_nodes import StoryNodeError, create_node, inspect_node_folder
+
 app = Flask(__name__)
 
 WORKS_ROOT = (Path(__file__).resolve().parent.parent / "works").resolve()
@@ -104,11 +109,21 @@ def safe_directory_entries(directory: Path) -> tuple[list[dict], list[dict]]:
             continue
 
         if entry.is_dir():
+            node_inspection = inspect_node_folder(WORKS_ROOT, entry)
             folders.append(
                 {
                     "name": entry.name,
                     "path": relative_path_for(resolved),
                     "last_modified": datetime.fromtimestamp(entry.stat().st_mtime),
+                    "node": {
+                        "is_node": node_inspection.is_node,
+                        "is_candidate": node_inspection.is_candidate,
+                        "title": node_inspection.manifest.title if node_inspection.manifest else "",
+                        "status": node_inspection.manifest.status if node_inspection.manifest else "",
+                        "missing_required": node_inspection.missing_required,
+                        "errors": node_inspection.errors,
+                        "optional_files": node_inspection.optional_files,
+                    },
                 }
             )
             continue
@@ -231,6 +246,21 @@ def create_folder():
 
     new_folder.mkdir()
     return redirect_to_folder(relative_path_for(new_folder), notice="Folder created.")
+
+
+@app.route("/create_node", methods=["POST"])
+def create_story_node():
+    current_path = request.form.get("current_path", "")
+    directory = resolve_path(current_path, expect="dir")
+    folder_name = validate_name(request.form.get("name"), expect_file=False)
+    title = request.form.get("title", "")
+
+    try:
+        node = create_node(WORKS_ROOT, directory, folder_name, title=title)
+    except StoryNodeError as exc:
+        return redirect_to_folder(current_path, error=str(exc))
+
+    return redirect_to_folder(node.path, notice="Story node created.")
 
 
 @app.route("/rename", methods=["POST"])

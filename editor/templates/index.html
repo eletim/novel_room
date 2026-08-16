@@ -34,6 +34,14 @@
 				<li class="entry-row">
 					<div class="entry-main">
 						<a class="entry-link" href="{{ url_for('view_folder', path=folder.path) }}">{{ folder.name }}/</a>
+						{% if folder.node.is_node %}
+						<span class="node-badge">話ノード{% if folder.node.title %}: {{ folder.node.title }}{% endif %} / {{ folder.node.status }}</span>
+						{% elif folder.node.is_candidate and (folder.node.missing_required or folder.node.errors) %}
+						<span class="node-badge node-badge-warning">
+							{% if folder.node.missing_required %}必須不足: {{ folder.node.missing_required | join(', ') }}{% endif %}
+							{% if folder.node.errors %} manifest不正{% endif %}
+						</span>
+						{% endif %}
 						<span class="meta">更新: {{ folder.last_modified.strftime('%Y-%m-%d %H:%M') }}</span>
 					</div>
 					<div class="entry-actions">
@@ -88,6 +96,17 @@
 					<input type="text" name="name" placeholder="folder-name" required>
 					<button type="submit">Create Folder</button>
 				</form>
+			</div>
+
+			<div class="form-block">
+				<h2>新しい話ノード</h2>
+				<form action="{{ url_for('create_story_node') }}" method="post" class="stack-form">
+					<input type="hidden" name="current_path" value="{{ current_path }}">
+					<input type="text" name="name" placeholder="node-id" required>
+					<input type="text" name="title" placeholder="title">
+					<button type="submit">Create Node</button>
+				</form>
+				<p class="hint">`main.md` と `manifest.json` を自動生成します。</p>
 			</div>
 
 			<div class="form-block">
