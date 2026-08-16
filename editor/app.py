@@ -4,9 +4,33 @@ from pathlib import Path, PurePosixPath
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
 
 try:
-    from .story_nodes import StoryNodeError, create_node, inspect_node_folder, load_node
+    from .story_graph import (
+        StoryGraphError,
+        add_edge,
+        load_graph,
+        main_route,
+        remove_edge,
+        safe_load_graph,
+        save_graph,
+        set_main_next,
+        set_start,
+        successors,
+    )
+    from .story_nodes import StoryNodeError, create_node, inspect_node_folder, list_nodes, load_node
 except ImportError:
-    from story_nodes import StoryNodeError, create_node, inspect_node_folder, load_node
+    from story_graph import (
+        StoryGraphError,
+        add_edge,
+        load_graph,
+        main_route,
+        remove_edge,
+        safe_load_graph,
+        save_graph,
+        set_main_next,
+        set_start,
+        successors,
+    )
+    from story_nodes import StoryNodeError, create_node, inspect_node_folder, list_nodes, load_node
 
 app = Flask(__name__)
 
@@ -154,6 +178,7 @@ def render_folder(current_path: str):
         parent_path=get_parent_path(current_path),
         folders=folders,
         files=files,
+        graph_path=normalize_relative_path(current_path),
         notice=request.args.get("notice", ""),
         error=request.args.get("error", ""),
     )
@@ -170,6 +195,15 @@ def redirect_to_folder(current_path: str, *, notice: str = "", error: str = ""):
     if error:
         kwargs["error"] = error
     return redirect(url_for(endpoint, **kwargs))
+
+
+def redirect_to_graph(work_path: str, *, notice: str = "", error: str = ""):
+    kwargs = {"path": normalize_relative_path(work_path)}
+    if notice:
+        kwargs["notice"] = notice
+    if error:
+        kwargs["error"] = error
+    return redirect(url_for("view_graph", **kwargs))
 
 
 def file_stats(file_path: Path) -> dict:
@@ -218,6 +252,42 @@ def view_node():
         illustration=illustration,
         raw_folder_path=relative_path_for(node_dir),
         parent_path=get_parent_path(relative_path_for(node_dir)),
+        graph_path=get_parent_path(relative_path_for(node_dir)) or "",
+    )
+
+
+@app.route("/graph")
+def view_graph():
+    work_dir = resolve_path(request.args.get("path", ""), expect="dir")
+    work_path = relative_path_for(work_dir)
+    nodes = list_nodes_for_graph(work_dir)
+    graph, graph_errors = safe_load_graph(work_dir)
+    successor_map = successors(graph)
+    main_route_nodes = main_route(graph)
+    main_route_edges = set(zip(main_route_nodes, main_route_nodes[1:]))
+    graph_edges = [
+        {
+            "source": edge.source,
+            "target": edge.target,
+            "is_main": (edge.source, edge.target) in main_route_edges,
+        }
+        for edge in graph.edges
+    ]
+
+    return render_template(
+        "graph.html",
+        work_path=work_path,
+        work_name="works" if work_dir == WORKS_ROOT else work_dir.name,
+        parent_path=get_parent_path(work_path),
+        nodes=nodes,
+        graph=graph,
+        graph_edges=graph_edges,
+        successor_map=successor_map,
+        main_route_nodes=main_route_nodes,
+        node_path_by_id={node.id: node.path for node in nodes},
+        graph_errors=graph_errors,
+        notice=request.args.get("notice", ""),
+        error=request.args.get("error", ""),
     )
 
 
@@ -323,6 +393,94 @@ def create_story_node():
         return redirect_to_folder(current_path, error=str(exc))
 
     return redirect(url_for("view_node", path=node.path))
+
+
+def list_nodes_for_graph(work_dir: Path) -> list:
+    return list_nodes(WORKS_ROOT, work_dir)
+
+
+def load_graph_form_context() -> tuple[Path, str, list, object]:
+    work_dir = resolve_path(request.form.get("work_path", ""), expect="dir")
+    nodes = list_nodes_for_graph(work_dir)
+    graph = load_graph(work_dir)
+    return work_dir, relative_path_for(work_dir), nodes, graph
+
+
+@app.route("/graph/create_node", methods=["POST"])
+def graph_create_node():
+    work_dir = resolve_path(request.form.get("work_path", ""), expect="dir")
+    work_path = relative_path_for(work_dir)
+    folder_name = validate_name(request.form.get("name"), expect_file=False)
+    title = request.form.get("title", "")
+
+    try:
+        create_node(WORKS_ROOT, work_dir, folder_name, title=title)
+    except StoryNodeError as exc:
+        return redirect_to_graph(work_path, error=str(exc))
+
+    return redirect_to_graph(work_path, notice="Story node created.")
+
+
+@app.route("/graph/set_start", methods=["POST"])
+def graph_set_start():
+    try:
+        work_dir, work_path, nodes, graph = load_graph_form_context()
+        graph = set_start(graph, nodes, request.form.get("start") or None)
+        save_graph(work_dir, graph)
+    except (StoryGraphError, StoryNodeError) as exc:
+        return redirect_to_graph(request.form.get("work_path", ""), error=str(exc))
+
+    return redirect_to_graph(work_path, notice="Start node updated.")
+
+
+@app.route("/graph/add_edge", methods=["POST"])
+def graph_add_edge():
+    try:
+        work_dir, work_path, nodes, graph = load_graph_form_context()
+        graph = add_edge(graph, nodes, request.form.get("source", "").strip(), request.form.get("target", "").strip())
+        save_graph(work_dir, graph)
+    except (StoryGraphError, StoryNodeError) as exc:
+        return redirect_to_graph(request.form.get("work_path", ""), error=str(exc))
+
+    return redirect_to_graph(work_path, notice="Edge added.")
+
+
+@app.route("/graph/delete_edge", methods=["POST"])
+def graph_delete_edge():
+    try:
+        work_dir, work_path, nodes, graph = load_graph_form_context()
+        graph = remove_edge(graph, request.form.get("source", "").strip(), request.form.get("target", "").strip())
+        set_start(graph, nodes, graph.start)
+        save_graph(work_dir, graph)
+    except (StoryGraphError, StoryNodeError) as exc:
+        return redirect_to_graph(request.form.get("work_path", ""), error=str(exc))
+
+    return redirect_to_graph(work_path, notice="Edge deleted.")
+
+
+@app.route("/graph/set_main", methods=["POST"])
+def graph_set_main():
+    try:
+        work_dir, work_path, nodes, graph = load_graph_form_context()
+        edge_choice = request.form.get("edge", "")
+        if edge_choice:
+            if "\t" not in edge_choice:
+                raise StoryGraphError("Main route edge is invalid.")
+            source, target = edge_choice.split("\t", 1)
+        else:
+            source = request.form.get("source", "").strip()
+            target = request.form.get("target", "").strip()
+        graph = set_main_next(
+            graph,
+            nodes,
+            source.strip(),
+            target.strip() or None,
+        )
+        save_graph(work_dir, graph)
+    except (StoryGraphError, StoryNodeError) as exc:
+        return redirect_to_graph(request.form.get("work_path", ""), error=str(exc))
+
+    return redirect_to_graph(work_path, notice="Main route updated.")
 
 
 @app.route("/rename", methods=["POST"])

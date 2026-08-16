@@ -14,6 +14,7 @@
 			</div>
 			<div class="header-actions">
 				<a class="nav-link" href="{{ url_for('index') }}">Root</a>
+				<a class="nav-link" href="{{ url_for('view_graph', path=graph_path) }}">Graph</a>
 				{% if parent_path is not none %}
 				<a class="nav-link" href="{{ url_for('index') if parent_path == '' else url_for('view_folder', path=parent_path) }}">..</a>
 				{% endif %}
