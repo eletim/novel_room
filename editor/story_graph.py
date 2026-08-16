@@ -39,6 +39,39 @@ class StoryGraph:
         }
 
 
+@dataclass(frozen=True)
+class GraphLayoutNode:
+    id: str
+    title: str
+    path: str
+    rank: int
+    lane: int
+    x: int
+    y: int
+    width: int
+    height: int
+    is_start: bool
+    is_main: bool
+    is_branch: bool
+    is_merge: bool
+
+
+@dataclass(frozen=True)
+class GraphLayoutEdge:
+    source: str
+    target: str
+    path: str
+    is_main: bool
+
+
+@dataclass(frozen=True)
+class GraphLayout:
+    width: int
+    height: int
+    nodes: tuple[GraphLayoutNode, ...]
+    edges: tuple[GraphLayoutEdge, ...]
+
+
 def graph_path(work_dir: Path) -> Path:
     return work_dir / GRAPH_FILE_NAME
 
@@ -275,3 +308,103 @@ def ordered_nodes(graph: StoryGraph, nodes: list[StoryNode]) -> list[StoryNode]:
         visit(node.id)
 
     return [node_by_id[node_id] for node_id in ordered_ids]
+
+
+def graph_layout(graph: StoryGraph, nodes: list[StoryNode]) -> GraphLayout:
+    node_by_id = {node.id: node for node in nodes}
+    ordered = ordered_nodes(graph, nodes)
+    ordered_ids = [node.id for node in ordered]
+    ordered_index = {node_id: index for index, node_id in enumerate(ordered_ids)}
+    outgoing = successors(graph)
+    incoming_counts = {node.id: 0 for node in nodes}
+    outgoing_counts = {node.id: 0 for node in nodes}
+
+    for edge in graph.edges:
+        if edge.source in node_by_id and edge.target in node_by_id:
+            outgoing_counts[edge.source] = outgoing_counts.get(edge.source, 0) + 1
+            incoming_counts[edge.target] = incoming_counts.get(edge.target, 0) + 1
+
+    ranks = _graph_ranks(graph, ordered_ids, node_by_id)
+    main_nodes = set(main_route(graph))
+    main_edges = set(zip(main_route(graph), main_route(graph)[1:]))
+    rank_groups: dict[int, list[str]] = {}
+    for node_id in ordered_ids:
+        rank_groups.setdefault(ranks[node_id], []).append(node_id)
+
+    for node_ids in rank_groups.values():
+        node_ids.sort(key=lambda node_id: (0 if node_id in main_nodes else 1, ordered_index[node_id]))
+
+    node_width = 220
+    node_height = 104
+    rank_gap = 170
+    lane_gap = 72
+    padding = 28
+    max_rank = max(rank_groups, default=0)
+    max_lanes = max((len(node_ids) for node_ids in rank_groups.values()), default=1)
+
+    layout_nodes = []
+    position_by_id = {}
+    for rank in sorted(rank_groups):
+        for lane, node_id in enumerate(rank_groups[rank]):
+            node = node_by_id[node_id]
+            x = padding + rank * (node_width + rank_gap)
+            y = padding + lane * (node_height + lane_gap)
+            position_by_id[node_id] = (x, y)
+            layout_nodes.append(
+                GraphLayoutNode(
+                    id=node.id,
+                    title=node.title,
+                    path=node.path,
+                    rank=rank,
+                    lane=lane,
+                    x=x,
+                    y=y,
+                    width=node_width,
+                    height=node_height,
+                    is_start=graph.start == node.id,
+                    is_main=node.id in main_nodes,
+                    is_branch=outgoing_counts.get(node.id, 0) > 1,
+                    is_merge=incoming_counts.get(node.id, 0) > 1,
+                )
+            )
+
+    layout_edges = []
+    for edge in graph.edges:
+        if edge.source not in position_by_id or edge.target not in position_by_id:
+            continue
+        source_x, source_y = position_by_id[edge.source]
+        target_x, target_y = position_by_id[edge.target]
+        x1 = source_x + node_width
+        y1 = source_y + node_height // 2
+        x2 = target_x
+        y2 = target_y + node_height // 2
+        control_offset = max(56, (x2 - x1) // 2)
+        path = f"M {x1} {y1} C {x1 + control_offset} {y1}, {x2 - control_offset} {y2}, {x2} {y2}"
+        layout_edges.append(
+            GraphLayoutEdge(
+                source=edge.source,
+                target=edge.target,
+                path=path,
+                is_main=(edge.source, edge.target) in main_edges,
+            )
+        )
+
+    width = padding * 2 + (max_rank + 1) * node_width + max_rank * rank_gap
+    height = max(260, padding * 2 + max_lanes * node_height + max(0, max_lanes - 1) * lane_gap)
+    return GraphLayout(width=width, height=height, nodes=tuple(layout_nodes), edges=tuple(layout_edges))
+
+
+def _graph_ranks(graph: StoryGraph, ordered_ids: list[str], node_by_id: dict[str, StoryNode]) -> dict[str, int]:
+    ranks = {node_id: 0 for node_id in ordered_ids}
+    for _ in ordered_ids:
+        changed = False
+        for edge in graph.edges:
+            if edge.source not in node_by_id or edge.target not in node_by_id:
+                continue
+            next_rank = ranks[edge.source] + 1
+            if next_rank > ranks[edge.target]:
+                ranks[edge.target] = next_rank
+                changed = True
+        if not changed:
+            break
+    return ranks

@@ -91,6 +91,14 @@ class GraphUiRouteTests(unittest.TestCase):
         body = response.get_data(as_text=True)
         self.assertLess(body.index('data-node-id="01"'), body.index('data-node-id="1to2"'))
         self.assertLess(body.index('data-node-id="1to2"'), body.index('data-node-id="02"'))
+        self.assertIn('<svg', body)
+        self.assertIn('class="graph-edge-layer"', body)
+        self.assertIn('data-edge-source="01"', body)
+        self.assertIn('data-edge-target="1to2"', body)
+        self.assertIn('data-main-route="true"', body)
+        self.assertIn('data-rank="0"', body)
+        self.assertIn('data-rank="1"', body)
+        self.assertIn('data-rank="2"', body)
         self.assertIn("01", body)
         self.assertIn("1to2", body)
         self.assertIn("02", body)
@@ -123,8 +131,21 @@ class GraphUiRouteTests(unittest.TestCase):
         self.assertIn("1to2", body)
         self.assertIn("02B", body)
         self.assertIn("03", body)
+        self.assertIn('data-edge-source="02A"', body)
+        self.assertIn('data-edge-source="02B"', body)
+        self.assertIn('data-edge-target="03"', body)
         self.assertLess(body.index('data-node-id="1to2"'), body.index('data-node-id="02B"'))
         self.assertLess(body.index('data-node-id="02B"'), body.index('data-node-id="03"'))
+
+    def test_graph_node_visual_links_to_node_overview(self):
+        create_node(self.root, self.work_dir, "01", title="Start")
+
+        response = self.client.get("/graph?path=work")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn('class="graph-node-card graph-node-box', body)
+        self.assertIn('href="/node?path=work/01"', body)
 
     def test_graph_invalid_or_missing_data_falls_back_safely(self):
         create_node(self.root, self.work_dir, "01")

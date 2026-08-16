@@ -8,6 +8,7 @@ from editor.story_graph import (
     StoryGraph,
     StoryGraphError,
     add_edge,
+    graph_layout,
     load_graph,
     remove_edge,
     safe_load_graph,
@@ -119,6 +120,54 @@ class StoryGraphTests(unittest.TestCase):
         self.assertIsNone(graph.start)
         self.assertEqual(graph.edges, ())
         self.assertIn("graph.json must be a file.", errors)
+
+    def test_graph_layout_ranks_chain_by_edges_not_folder_name_sort(self):
+        create_node(self.root, self.work_dir, "1to2")
+        nodes = list_nodes(self.root, self.work_dir)
+        graph = StoryGraph(
+            start="01",
+            edges=(StoryEdge("01", "1to2"), StoryEdge("1to2", "02")),
+            main_next={"01": "1to2", "1to2": "02"},
+        )
+
+        layout = graph_layout(graph, nodes)
+        nodes_by_id = {node.id: node for node in layout.nodes}
+        edges_by_pair = {(edge.source, edge.target): edge for edge in layout.edges}
+
+        self.assertEqual(nodes_by_id["01"].rank, 0)
+        self.assertEqual(nodes_by_id["1to2"].rank, 1)
+        self.assertEqual(nodes_by_id["02"].rank, 2)
+        self.assertLess(nodes_by_id["01"].x, nodes_by_id["1to2"].x)
+        self.assertLess(nodes_by_id["1to2"].x, nodes_by_id["02"].x)
+        self.assertTrue(edges_by_pair[("01", "1to2")].is_main)
+        self.assertTrue(edges_by_pair[("1to2", "02")].is_main)
+        self.assertIn("C", edges_by_pair[("01", "1to2")].path)
+
+    def test_graph_layout_places_branch_and_merge_spatially(self):
+        graph = StoryGraph(
+            start="01",
+            edges=(
+                StoryEdge("01", "02"),
+                StoryEdge("01", "03b"),
+                StoryEdge("02", "04"),
+                StoryEdge("03b", "04"),
+            ),
+            main_next={"01": "03b", "03b": "04"},
+        )
+
+        layout = graph_layout(graph, self.nodes)
+        nodes_by_id = {node.id: node for node in layout.nodes}
+        edges_by_pair = {(edge.source, edge.target): edge for edge in layout.edges}
+
+        self.assertEqual(nodes_by_id["02"].rank, 1)
+        self.assertEqual(nodes_by_id["03b"].rank, 1)
+        self.assertNotEqual(nodes_by_id["02"].lane, nodes_by_id["03b"].lane)
+        self.assertTrue(nodes_by_id["01"].is_branch)
+        self.assertTrue(nodes_by_id["04"].is_merge)
+        self.assertEqual(nodes_by_id["04"].rank, 2)
+        self.assertTrue(nodes_by_id["03b"].is_main)
+        self.assertTrue(edges_by_pair[("01", "03b")].is_main)
+        self.assertFalse(edges_by_pair[("01", "02")].is_main)
 
 
 if __name__ == "__main__":

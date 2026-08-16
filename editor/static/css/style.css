@@ -266,11 +266,16 @@ select {
 	color: rgb(130, 150, 175);
 }
 
-.graph-node-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-	gap: 14px;
-	min-width: 680px;
+.graph-visual-scroll {
+	overflow-x: auto;
+	padding-bottom: 6px;
+}
+
+.graph-visual {
+	position: relative;
+	min-width: 100%;
+	background-color: rgb(28, 30, 34);
+	border: 1px solid rgb(48, 55, 62);
 }
 
 .graph-node-card {
@@ -279,24 +284,38 @@ select {
 	padding: 14px;
 }
 
-.graph-node-card.is-main-route {
-	border-color: rgb(95, 135, 100);
-}
-
-.graph-node-header {
+.graph-node-box {
+	position: absolute;
+	z-index: 2;
 	display: flex;
-	justify-content: space-between;
-	gap: 10px;
-}
-
-.graph-node-header a {
-	color: rgb(220, 230, 245);
+	flex-direction: column;
+	gap: 7px;
+	box-sizing: border-box;
 	text-decoration: none;
-	font-size: 20px;
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
 }
 
-.graph-node-header span {
+.graph-node-card.is-main-route {
+	border-color: rgb(125, 170, 105);
+	background-color: rgb(34, 48, 37);
+}
+
+.graph-node-box:hover {
+	border-color: rgb(145, 170, 205);
+	background-color: rgb(38, 43, 50);
+}
+
+.graph-node-title {
+	color: rgb(220, 230, 245);
+	font-size: 20px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.graph-node-id {
 	color: rgb(130, 150, 175);
+	font-size: 14px;
 }
 
 .graph-node-badges,
@@ -312,6 +331,35 @@ select {
 	border: 1px solid rgb(55, 55, 55);
 	padding: 3px 6px;
 	font-size: 14px;
+}
+
+.graph-edge-layer {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	pointer-events: none;
+	overflow: visible;
+}
+
+.graph-edge {
+	fill: none;
+	stroke: rgb(90, 110, 138);
+	stroke-width: 2.5;
+	marker-end: url("#graph-arrow");
+}
+
+.graph-edge.is-main-route {
+	stroke: rgb(145, 190, 105);
+	stroke-width: 4;
+	marker-end: url("#graph-arrow-main");
+}
+
+#graph-arrow path {
+	fill: rgb(90, 110, 138);
+}
+
+#graph-arrow-main path {
+	fill: rgb(145, 190, 105);
 }
 
 .branch-badge {
@@ -472,8 +520,8 @@ select {
 		grid-template-columns: 1fr;
 	}
 
-	.graph-node-grid {
-		min-width: 0;
+	.graph-visual {
+		min-width: 720px;
 	}
 }
 
