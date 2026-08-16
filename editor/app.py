@@ -9,6 +9,7 @@ try:
     from .story_graph import (
         StoryGraphError,
         add_edge,
+        graph_layout,
         load_graph,
         main_route,
         ordered_nodes,
@@ -24,6 +25,7 @@ except ImportError:
     from story_graph import (
         StoryGraphError,
         add_edge,
+        graph_layout,
         load_graph,
         main_route,
         ordered_nodes,
@@ -390,6 +392,7 @@ def view_graph():
     nodes = list_nodes_for_graph(work_dir)
     graph, graph_errors = safe_load_graph(work_dir)
     display_nodes = ordered_nodes(graph, nodes)
+    layout = graph_layout(graph, nodes)
     successor_map = successors(graph)
     main_route_nodes = main_route(graph)
     main_route_edges = set(zip(main_route_nodes, main_route_nodes[1:]))
@@ -408,6 +411,7 @@ def view_graph():
         work_name="works" if work_dir == WORKS_ROOT else work_dir.name,
         parent_path=get_parent_path(work_path),
         nodes=display_nodes,
+        layout=layout,
         graph=graph,
         graph_edges=graph_edges,
         successor_map=successor_map,
