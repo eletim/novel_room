@@ -58,6 +58,8 @@ def read_manifest(node_dir: Path) -> NodeManifest:
         raw_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
         raise StoryNodeError("manifest.json is missing.") from exc
+    except UnicodeDecodeError as exc:
+        raise StoryNodeError("manifest.json must be UTF-8 text.") from exc
     except JSONDecodeError as exc:
         raise StoryNodeError(f"manifest.json is invalid JSON: {exc.msg}.") from exc
 

@@ -3,7 +3,10 @@ from pathlib import Path, PurePosixPath
 
 from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 
-from story_nodes import StoryNodeError, create_node, inspect_node_folder
+try:
+    from .story_nodes import StoryNodeError, create_node, inspect_node_folder
+except ImportError:
+    from story_nodes import StoryNodeError, create_node, inspect_node_folder
 
 app = Flask(__name__)
 

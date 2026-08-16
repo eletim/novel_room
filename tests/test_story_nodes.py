@@ -46,6 +46,21 @@ class StoryNodeTests(unittest.TestCase):
             with self.assertRaises(StoryNodeError):
                 load_node(root, node_dir)
 
+    def test_non_utf8_manifest_is_reported_without_loading_node(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            node_dir = root / "bad-encoding"
+            node_dir.mkdir()
+            (node_dir / "main.md").write_text("", encoding="utf-8")
+            (node_dir / "manifest.json").write_bytes(b"\xff\xfe\x00")
+
+            inspection = inspect_node_folder(root, node_dir)
+
+            self.assertFalse(inspection.is_node)
+            self.assertIn("manifest.json must be UTF-8 text.", inspection.errors)
+            with self.assertRaises(StoryNodeError):
+                load_node(root, node_dir)
+
     def test_missing_required_file_is_reported(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
