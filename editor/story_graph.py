@@ -223,8 +223,16 @@ def set_main_next(graph: StoryGraph, nodes: list[StoryNode], source: str, target
 def successors(graph: StoryGraph) -> dict[str, list[str]]:
     result: dict[str, list[str]] = {}
     for edge in graph.edges:
-        result.setdefault(edge.source, []).append(edge.target)
-    return {source: sorted(targets) for source, targets in result.items()}
+        targets = result.setdefault(edge.source, [])
+        if edge.target not in targets:
+            targets.append(edge.target)
+
+    for source, main_target in graph.main_next.items():
+        targets = result.get(source)
+        if targets and main_target in targets:
+            targets.remove(main_target)
+            targets.insert(0, main_target)
+    return result
 
 
 def main_route(graph: StoryGraph) -> list[str]:
@@ -244,3 +252,26 @@ def main_route(graph: StoryGraph) -> list[str]:
         current = next_node
 
     return route
+
+
+def ordered_nodes(graph: StoryGraph, nodes: list[StoryNode]) -> list[StoryNode]:
+    node_by_id = {node.id: node for node in nodes}
+    ordered_ids: list[str] = []
+    seen: set[str] = set()
+    outgoing = successors(graph)
+
+    def visit(node_id: str) -> None:
+        if node_id in seen or node_id not in node_by_id:
+            return
+        seen.add(node_id)
+        ordered_ids.append(node_id)
+        for target in outgoing.get(node_id, []):
+            visit(target)
+
+    if graph.start is not None:
+        visit(graph.start)
+
+    for node in nodes:
+        visit(node.id)
+
+    return [node_by_id[node_id] for node_id in ordered_ids]

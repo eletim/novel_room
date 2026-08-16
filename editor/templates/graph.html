@@ -48,7 +48,7 @@
 				{% for node in nodes %}
 				{% set incoming_count = graph_edges | selectattr('target', 'equalto', node.id) | list | length %}
 				{% set outgoing_count = successor_map.get(node.id, []) | length %}
-				<article class="graph-node-card{% if node.id in main_route_nodes %} is-main-route{% endif %}">
+				<article class="graph-node-card{% if node.id in main_route_nodes %} is-main-route{% endif %}" data-node-id="{{ node.id }}">
 					<div class="graph-node-header">
 						<a href="{{ url_for('view_node', path=node.path) }}">{{ node.title or node.id }}</a>
 						<span>{{ node.id }}</span>
