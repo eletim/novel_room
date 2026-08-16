@@ -111,6 +111,15 @@ class StoryGraphTests(unittest.TestCase):
         self.assertEqual(graph.edges, ())
         self.assertTrue(errors)
 
+    def test_safe_load_graph_handles_graph_path_that_is_not_a_file(self):
+        (self.work_dir / "graph.json").mkdir()
+
+        graph, errors = safe_load_graph(self.work_dir)
+
+        self.assertIsNone(graph.start)
+        self.assertEqual(graph.edges, ())
+        self.assertIn("graph.json must be a file.", errors)
+
 
 if __name__ == "__main__":
     unittest.main()

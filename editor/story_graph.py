@@ -55,6 +55,8 @@ def load_graph(work_dir: Path) -> StoryGraph:
     path = graph_path(work_dir)
     if not path.exists():
         return default_graph(list_nodes(work_dir.parent, work_dir))
+    if not path.is_file():
+        raise StoryGraphError("graph.json must be a file.")
 
     try:
         raw_graph = json.loads(path.read_text(encoding="utf-8"))
