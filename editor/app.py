@@ -11,6 +11,7 @@ try:
         add_edge,
         load_graph,
         main_route,
+        ordered_nodes,
         remove_edge,
         safe_load_graph,
         save_graph,
@@ -25,6 +26,7 @@ except ImportError:
         add_edge,
         load_graph,
         main_route,
+        ordered_nodes,
         remove_edge,
         safe_load_graph,
         save_graph,
@@ -125,6 +127,12 @@ def build_child_path(parent_path: str, name: str) -> str:
     return child.as_posix() if str(child) != "." else ""
 
 
+def is_graph_work_folder(directory: Path) -> bool:
+    if (directory / "graph.json").exists():
+        return True
+    return bool(list_nodes(WORKS_ROOT, directory))
+
+
 def safe_directory_entries(directory: Path) -> tuple[list[dict], list[dict]]:
     folders = []
     files = []
@@ -143,6 +151,9 @@ def safe_directory_entries(directory: Path) -> tuple[list[dict], list[dict]]:
                     "name": entry.name,
                     "path": relative_path_for(resolved),
                     "last_modified": datetime.fromtimestamp(entry.stat().st_mtime),
+                    "work": {
+                        "is_graph_work": is_graph_work_folder(entry),
+                    },
                     "node": {
                         "is_node": node_inspection.is_node,
                         "is_candidate": node_inspection.is_candidate,
@@ -171,7 +182,7 @@ def safe_directory_entries(directory: Path) -> tuple[list[dict], list[dict]]:
     return folders, files
 
 
-def render_folder(current_path: str):
+def render_folder(current_path: str, *, raw_mode: bool = False):
     folder_path = resolve_path(current_path, expect="dir")
     folders, files = safe_directory_entries(folder_path)
 
@@ -183,6 +194,7 @@ def render_folder(current_path: str):
         folders=folders,
         files=files,
         graph_path=normalize_relative_path(current_path),
+        raw_mode=raw_mode,
         notice=request.args.get("notice", ""),
         error=request.args.get("error", ""),
     )
@@ -338,7 +350,7 @@ def index():
 
 @app.route("/folder")
 def view_folder():
-    return render_folder(request.args.get("path", ""))
+    return render_folder(request.args.get("path", ""), raw_mode=True)
 
 
 @app.route("/node")
@@ -377,6 +389,7 @@ def view_graph():
     work_path = relative_path_for(work_dir)
     nodes = list_nodes_for_graph(work_dir)
     graph, graph_errors = safe_load_graph(work_dir)
+    display_nodes = ordered_nodes(graph, nodes)
     successor_map = successors(graph)
     main_route_nodes = main_route(graph)
     main_route_edges = set(zip(main_route_nodes, main_route_nodes[1:]))
@@ -394,7 +407,7 @@ def view_graph():
         work_path=work_path,
         work_name="works" if work_dir == WORKS_ROOT else work_dir.name,
         parent_path=get_parent_path(work_path),
-        nodes=nodes,
+        nodes=display_nodes,
         graph=graph,
         graph_edges=graph_edges,
         successor_map=successor_map,
