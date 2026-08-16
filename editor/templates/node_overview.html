@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+	<meta charset="UTF-8">
+	<title>{{ node.title or node.id }}</title>
+	<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+	<div class="main-content">
+		<header class="page-header">
+			<div>
+				<h1>{{ node.title or node.id }}</h1>
+				<p class="path-label">話ノード: works/{{ node.path }}</p>
+			</div>
+			<div class="header-actions">
+				<a class="nav-link" href="{{ url_for('index') }}">Root</a>
+				{% if parent_path is not none %}
+				<a class="nav-link" href="{{ url_for('index') if parent_path == '' else url_for('view_folder', path=parent_path) }}">..</a>
+				{% endif %}
+				<a class="nav-link" href="{{ url_for('view_folder', path=raw_folder_path) }}">Raw Folder</a>
+			</div>
+		</header>
+
+		<section class="panel overview-panel">
+			<div class="overview-grid">
+				<div>
+					<h2>メタ情報</h2>
+					<dl class="definition-list">
+						<div>
+							<dt>Node ID</dt>
+							<dd>{{ node.id }}</dd>
+						</div>
+						<div>
+							<dt>Folder</dt>
+							<dd>{{ node.folder_name }}</dd>
+						</div>
+						<div>
+							<dt>Status</dt>
+							<dd>{{ node.status }}</dd>
+						</div>
+						<div>
+							<dt>Manifest</dt>
+							<dd>{{ node.manifest_path }}</dd>
+						</div>
+					</dl>
+				</div>
+
+				<div>
+					<h2>本文</h2>
+					<p class="meta">main.md / 文字数: {{ main_file.length }} / 更新: {{ main_file.last_modified.strftime('%Y-%m-%d %H:%M') }}</p>
+					<a class="nav-link primary-link" href="{{ url_for('edit_file', path=main_file.path) }}">main.md を開く</a>
+				</div>
+			</div>
+		</section>
+
+		<section class="panel">
+			<h2>補助情報</h2>
+			<ul class="entry-list">
+				<li class="entry-row">
+					<div class="entry-main">
+						<span class="entry-link">free_memo.md</span>
+						{% if free_memo %}
+						<span class="meta">文字数: {{ free_memo.length }} / 更新: {{ free_memo.last_modified.strftime('%Y-%m-%d %H:%M') }}</span>
+						{% else %}
+						<span class="meta">未作成</span>
+						{% endif %}
+					</div>
+					{% if free_memo %}
+					<div class="entry-actions">
+						<a class="nav-link" href="{{ url_for('edit_file', path=free_memo.path) }}">Open</a>
+					</div>
+					{% endif %}
+				</li>
+				<li class="entry-row">
+					<div class="entry-main">
+						<span class="entry-link">illust.png</span>
+						{% if illustration %}
+						<span class="meta">更新: {{ illustration.last_modified.strftime('%Y-%m-%d %H:%M') }}</span>
+						{% else %}
+						<span class="meta">未作成</span>
+						{% endif %}
+					</div>
+				</li>
+			</ul>
+			{% if illustration %}
+			<div class="node-illustration">
+				<img src="{{ url_for('node_asset', path=node.path, name='illust.png') }}" alt="{{ node.title or node.id }}">
+			</div>
+			{% endif %}
+		</section>
+	</div>
+</body>
+</html>
