@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 import editor.app as app_module
+from editor.story_graph import StoryGraph, save_graph
 from editor.story_nodes import create_node
 
 
@@ -19,7 +20,7 @@ class NodeOverviewRouteTests(unittest.TestCase):
         app_module.WORKS_ROOT = self.previous_root
         self.tmpdir.cleanup()
 
-    def test_node_link_opens_overview_and_raw_folder_link_remains(self):
+    def test_node_link_opens_overview_without_raw_folder_link(self):
         create_node(self.root, self.root, "01", title="Start")
 
         response = self.client.get("/")
@@ -27,7 +28,8 @@ class NodeOverviewRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.get_data(as_text=True)
         self.assertIn('/node?path=01"', body)
-        self.assertIn('/folder?path=01"', body)
+        self.assertNotIn('/folder?path=01"', body)
+        self.assertNotIn("Raw Folder", body)
 
     def test_overview_shows_main_metadata_and_optional_absence(self):
         node_dir = self.root / "01"
@@ -42,8 +44,48 @@ class NodeOverviewRouteTests(unittest.TestCase):
         self.assertIn("Node ID", body)
         self.assertIn("文字数: 3", body)
         self.assertIn("/edit?path=01/main.md", body)
-        self.assertIn("Raw Folder", body)
+        self.assertNotIn("Raw Folder", body)
+        self.assertNotIn(">..<", body)
+        self.assertNotIn(">Graph<", body)
         self.assertIn("未作成", body)
+
+    def test_overview_links_graph_only_when_valid_graph_exists(self):
+        work_dir = self.root / "work"
+        work_dir.mkdir()
+        create_node(self.root, work_dir, "01", title="Start")
+        save_graph(work_dir, StoryGraph(start="01", edges=(), main_next={}))
+
+        response = self.client.get("/node?path=work/01")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn('href="/graph?path=work"', body)
+        self.assertIn(">Graph<", body)
+
+    def test_overview_hides_graph_link_when_graph_is_invalid(self):
+        work_dir = self.root / "work"
+        work_dir.mkdir()
+        create_node(self.root, work_dir, "01", title="Start")
+        (work_dir / "graph.json").write_text('{"start": "missing", "edges": []}', encoding="utf-8")
+
+        response = self.client.get("/node?path=work/01")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertNotIn('href="/graph?path=work"', body)
+        self.assertNotIn(">Graph<", body)
+
+    def test_editor_returns_to_node_overview_for_node_files(self):
+        create_node(self.root, self.root, "01", title="Start")
+
+        response = self.client.get("/edit?path=01/main.md")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn('href="/node?path=01"', body)
+        self.assertIn(">Node<", body)
+        self.assertNotIn("Raw Folder", body)
+        self.assertNotIn(">..<", body)
 
     def test_overview_links_free_memo_when_present(self):
         node_dir = self.root / "01"
