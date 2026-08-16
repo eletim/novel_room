@@ -33,10 +33,14 @@
 				{% for folder in folders %}
 				<li class="entry-row">
 					<div class="entry-main">
-						<a class="entry-link" href="{{ url_for('view_folder', path=folder.path) }}">{{ folder.name }}/</a>
 						{% if folder.node.is_node %}
+						<a class="entry-link" href="{{ url_for('view_node', path=folder.path) }}">{{ folder.name }}/</a>
 						<span class="node-badge">話ノード{% if folder.node.title %}: {{ folder.node.title }}{% endif %} / {{ folder.node.status }}</span>
-						{% elif folder.node.is_candidate and (folder.node.missing_required or folder.node.errors) %}
+						<a class="raw-folder-link" href="{{ url_for('view_folder', path=folder.path) }}">Raw Folder</a>
+						{% else %}
+						<a class="entry-link" href="{{ url_for('view_folder', path=folder.path) }}">{{ folder.name }}/</a>
+						{% endif %}
+						{% if not folder.node.is_node and folder.node.is_candidate and (folder.node.missing_required or folder.node.errors) %}
 						<span class="node-badge node-badge-warning">
 							{% if folder.node.missing_required %}必須不足: {{ folder.node.missing_required | join(', ') }}{% endif %}
 							{% if folder.node.errors %} manifest不正{% endif %}

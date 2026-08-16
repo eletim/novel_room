@@ -1,12 +1,12 @@
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
 
 try:
-    from .story_nodes import StoryNodeError, create_node, inspect_node_folder
+    from .story_nodes import StoryNodeError, create_node, inspect_node_folder, load_node
 except ImportError:
-    from story_nodes import StoryNodeError, create_node, inspect_node_folder
+    from story_nodes import StoryNodeError, create_node, inspect_node_folder, load_node
 
 app = Flask(__name__)
 
@@ -172,6 +172,16 @@ def redirect_to_folder(current_path: str, *, notice: str = "", error: str = ""):
     return redirect(url_for(endpoint, **kwargs))
 
 
+def file_stats(file_path: Path) -> dict:
+    content = file_path.read_text(encoding="utf-8")
+    return {
+        "path": relative_path_for(file_path),
+        "name": file_path.name,
+        "length": len(content),
+        "last_modified": datetime.fromtimestamp(file_path.stat().st_mtime),
+    }
+
+
 @app.route("/")
 def index():
     return render_folder("")
@@ -180,6 +190,58 @@ def index():
 @app.route("/folder")
 def view_folder():
     return render_folder(request.args.get("path", ""))
+
+
+@app.route("/node")
+def view_node():
+    node_dir = resolve_path(request.args.get("path", ""), expect="dir")
+    try:
+        node = load_node(WORKS_ROOT, node_dir)
+    except StoryNodeError as exc:
+        abort(404, description=str(exc))
+
+    main_file = file_stats(node_dir / "main.md")
+    free_memo = file_stats(node_dir / "free_memo.md") if (node_dir / "free_memo.md").is_file() else None
+    illustration = None
+    if (node_dir / "illust.png").is_file():
+        illustration = {
+            "name": "illust.png",
+            "path": relative_path_for(node_dir / "illust.png"),
+            "last_modified": datetime.fromtimestamp((node_dir / "illust.png").stat().st_mtime),
+        }
+
+    return render_template(
+        "node_overview.html",
+        node=node,
+        main_file=main_file,
+        free_memo=free_memo,
+        illustration=illustration,
+        raw_folder_path=relative_path_for(node_dir),
+        parent_path=get_parent_path(relative_path_for(node_dir)),
+    )
+
+
+@app.route("/node_asset")
+def node_asset():
+    node_dir = resolve_path(request.args.get("path", ""), expect="dir")
+    try:
+        load_node(WORKS_ROOT, node_dir)
+    except StoryNodeError as exc:
+        abort(404, description=str(exc))
+
+    name = request.args.get("name", "")
+    if name != "illust.png":
+        abort(404, description="Asset not found.")
+
+    asset_path = (node_dir / name).resolve()
+    try:
+        asset_path.relative_to(node_dir.resolve())
+    except ValueError:
+        abort(400, description="Invalid asset path.")
+    if not asset_path.is_file():
+        abort(404, description="Asset not found.")
+
+    return send_file(asset_path)
 
 
 @app.route("/edit")
@@ -260,7 +322,7 @@ def create_story_node():
     except StoryNodeError as exc:
         return redirect_to_folder(current_path, error=str(exc))
 
-    return redirect_to_folder(node.path, notice="Story node created.")
+    return redirect(url_for("view_node", path=node.path))
 
 
 @app.route("/rename", methods=["POST"])

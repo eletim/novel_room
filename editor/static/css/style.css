@@ -149,6 +149,54 @@ input {
 	border-color: rgb(125, 88, 55);
 }
 
+.raw-folder-link {
+	color: rgb(150, 170, 195);
+	font-size: 14px;
+}
+
+.primary-link {
+	margin-top: 10px;
+}
+
+.overview-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	gap: 24px;
+}
+
+.definition-list {
+	display: grid;
+	gap: 10px;
+	margin: 0;
+}
+
+.definition-list div {
+	display: grid;
+	grid-template-columns: 120px minmax(0, 1fr);
+	gap: 12px;
+}
+
+.definition-list dt {
+	color: rgb(130, 150, 175);
+}
+
+.definition-list dd {
+	margin: 0;
+	word-break: break-word;
+}
+
+.node-illustration {
+	margin-top: 18px;
+}
+
+.node-illustration img {
+	display: block;
+	max-width: min(100%, 720px);
+	max-height: 70vh;
+	object-fit: contain;
+	border: 1px solid rgb(55, 55, 55);
+}
+
 .entry-actions {
 	flex-wrap: wrap;
 	justify-content: flex-end;
@@ -290,6 +338,11 @@ input {
 	.novel-content {
 		font-size: 24px;
 		padding: 14px 5vw 32px;
+	}
+
+	.overview-grid,
+	.definition-list div {
+		grid-template-columns: 1fr;
 	}
 }
 
