@@ -218,3 +218,29 @@ def set_main_next(graph: StoryGraph, nodes: list[StoryNode], source: str, target
     next_graph = StoryGraph(start=graph.start, edges=graph.edges, main_next=main_next)
     validate_graph(next_graph, nodes)
     return next_graph
+
+
+def successors(graph: StoryGraph) -> dict[str, list[str]]:
+    result: dict[str, list[str]] = {}
+    for edge in graph.edges:
+        result.setdefault(edge.source, []).append(edge.target)
+    return {source: sorted(targets) for source, targets in result.items()}
+
+
+def main_route(graph: StoryGraph) -> list[str]:
+    if graph.start is None:
+        return []
+
+    route = [graph.start]
+    seen = {graph.start}
+    current = graph.start
+
+    while current in graph.main_next:
+        next_node = graph.main_next[current]
+        if next_node in seen:
+            break
+        route.append(next_node)
+        seen.add(next_node)
+        current = next_node
+
+    return route
