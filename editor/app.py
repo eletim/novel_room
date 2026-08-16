@@ -232,7 +232,11 @@ def validate_png_image(data: bytes) -> None:
     seen_ihdr = False
     seen_idat = False
     seen_iend = False
+    seen_plte = False
+    plte_is_valid = False
     chunk_index = 0
+    ihdr_data = b""
+    idat_chunks: list[bytes] = []
     try:
         while offset < len(data):
             if offset + 8 > len(data):
@@ -254,10 +258,17 @@ def validate_png_image(data: bytes) -> None:
                 if chunk_index != 0 or chunk_length != 13:
                     abort(400, description="Invalid PNG image data.")
                 seen_ihdr = True
+                ihdr_data = chunk_data
             elif not seen_ihdr:
                 abort(400, description="Invalid PNG image data.")
+            if chunk_type == b"PLTE":
+                if seen_idat:
+                    abort(400, description="Invalid PNG image data.")
+                seen_plte = True
+                plte_is_valid = chunk_length > 0 and chunk_length % 3 == 0 and chunk_length <= 768
             if chunk_type == b"IDAT":
                 seen_idat = True
+                idat_chunks.append(chunk_data)
             if chunk_type == b"IEND":
                 if chunk_length != 0:
                     abort(400, description="Invalid PNG image data.")
@@ -271,6 +282,53 @@ def validate_png_image(data: bytes) -> None:
 
     if not seen_ihdr or not seen_idat or not seen_iend or offset != len(data):
         abort(400, description="Invalid PNG image data.")
+
+    validate_png_pixels(ihdr_data, b"".join(idat_chunks), seen_plte=seen_plte, plte_is_valid=plte_is_valid)
+
+
+def validate_png_pixels(ihdr_data: bytes, idat_data: bytes, *, seen_plte: bool, plte_is_valid: bool) -> None:
+    try:
+        width, height, bit_depth, color_type, compression, filter_method, interlace = struct.unpack(">IIBBBBB", ihdr_data)
+    except struct.error:
+        abort(400, description="Invalid PNG image data.")
+
+    if width < 1 or height < 1:
+        abort(400, description="Invalid PNG image data.")
+    if compression != 0 or filter_method != 0 or interlace != 0:
+        abort(400, description="Invalid PNG image data.")
+
+    allowed_bit_depths = {
+        0: {1, 2, 4, 8, 16},
+        2: {8, 16},
+        3: {1, 2, 4, 8},
+        4: {8, 16},
+        6: {8, 16},
+    }
+    if color_type not in allowed_bit_depths or bit_depth not in allowed_bit_depths[color_type]:
+        abort(400, description="Invalid PNG image data.")
+    if color_type == 3 and (not seen_plte or not plte_is_valid):
+        abort(400, description="Invalid PNG image data.")
+
+    channels = {
+        0: 1,
+        2: 3,
+        3: 1,
+        4: 2,
+        6: 4,
+    }[color_type]
+    bits_per_scanline = width * channels * bit_depth
+    scanline_length = 1 + ((bits_per_scanline + 7) // 8)
+    expected_length = scanline_length * height
+
+    try:
+        pixels = zlib.decompress(idat_data)
+    except zlib.error:
+        abort(400, description="Invalid PNG image data.")
+    if len(pixels) != expected_length:
+        abort(400, description="Invalid PNG image data.")
+    for row_start in range(0, len(pixels), scanline_length):
+        if pixels[row_start] > 4:
+            abort(400, description="Invalid PNG image data.")
 
 
 @app.route("/")

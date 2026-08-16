@@ -96,6 +96,48 @@ class IllustrationUploadTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse((self.root / "01" / "illust.png").exists())
 
+    def test_upload_rejects_png_with_undecodable_image_data(self):
+        ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0)
+        broken_idat_png = (
+            b"\x89PNG\r\n\x1a\n"
+            + png_chunk(b"IHDR", ihdr)
+            + png_chunk(b"IDAT", b"not-zlib-image-data")
+            + png_chunk(b"IEND", b"")
+        )
+
+        response = self.post_png(broken_idat_png)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse((self.root / "01" / "illust.png").exists())
+
+    def test_upload_rejects_png_with_invalid_scanline_filter(self):
+        ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0)
+        invalid_filter_png = (
+            b"\x89PNG\r\n\x1a\n"
+            + png_chunk(b"IHDR", ihdr)
+            + png_chunk(b"IDAT", zlib.compress(b"\x05\xff\x00\x00\xff"))
+            + png_chunk(b"IEND", b"")
+        )
+
+        response = self.post_png(invalid_filter_png)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse((self.root / "01" / "illust.png").exists())
+
+    def test_upload_rejects_palette_png_without_palette_chunk(self):
+        ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 3, 0, 0, 0)
+        no_palette_png = (
+            b"\x89PNG\r\n\x1a\n"
+            + png_chunk(b"IHDR", ihdr)
+            + png_chunk(b"IDAT", zlib.compress(b"\x00\x00"))
+            + png_chunk(b"IEND", b"")
+        )
+
+        response = self.post_png(no_palette_png)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse((self.root / "01" / "illust.png").exists())
+
     def test_invalid_replacement_keeps_existing_illust_png(self):
         (self.root / "01" / "illust.png").write_bytes(PNG_BYTES)
 
